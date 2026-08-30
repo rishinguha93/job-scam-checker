@@ -76,6 +76,25 @@ describe("analyze", () => {
     expect(f?.severity).toBe("high");
   });
 
+  it("flags the 'leave your number / my leader will contact you' recruitment lure", () => {
+    const text = `Recruiter: Hello, I am a Recruiter in the Human Resources Department at CME Group and I have seen your profile on LinkedIn and you have a wealth of experience in your field. We are currently recruiting for senior management positions. If you are interested in learning more about our senior vacancies, please leave your phone number. We will arrange for a project manager to contact you.
+
+Hi, thank you for reaching out. Can you clarify what sort of senior management positions you're recruiting for? Is there a job description I can review?
+
+Recruiter: The position I have for you is Application Support Specialist. If you are interested you can leave your number and I will forward it to my leadership, remember to reply in time, thank you, here is your job description Application Support Specialist jobs.docx 11 KB Download
+
+Recruiter: Of course, and my leader will keep you informed throughout the whole process, so keep an eye out for news from my leader.
+
+Recruiter: My leader just added your text message so you can check it out and reply. Did you reply to my leader's message?`;
+
+    const result = analyze({ text, channel: "linkedin", claimedCompany: "CME Group" });
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toContain("unnamed-leader-handoff");
+    expect(ids).toContain("recruiter-phone-harvest");
+    expect(ids).toContain("offplatform-push");
+    expect(["high-risk", "very-likely-scam"]).toContain(result.verdict);
+  });
+
   it("every finding carries evidence and advice", () => {
     const result = analyze({
       text:

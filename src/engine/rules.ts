@@ -272,6 +272,10 @@ const offPlatformPatterns = [
   /\b(contact|message|reach|add|text|dm) (me|us|the hiring manager)\b[^.]{0,30}\b(on|via|through|at)\b[^.]{0,15}\b(whats ?app|telegram|signal|skype|wechat)\b/i,
   /\b(whats ?app|telegram|signal|skype)\b[^.]{0,20}\b(number|handle|id|\+?\d{6,})\b/i,
   /\bwe (only )?(interview|hire|onboard) (via|through|on)\b[^.]{0,15}\b(whats ?app|telegram|signal|skype)\b/i,
+  // Handoff to SMS / an intermediary's chat thread.
+  /\b(reply to|replied to|respond to|check|see|read) (my|the|your) (leader|manager|colleague|supervisor|boss)('?s)? (message|text)\b/i,
+  /\b(added|sent|shared) your (text message|number|contact|whats ?app)\b/i,
+  /\b(continue|chat|talk|speak|communicate|keep in touch) (with (me|us|my leader|him|her) )?(by|via|over|through|on) (text|sms|text message)\b/i,
 ];
 
 const offPlatformPush: Rule = (input) => {
@@ -281,10 +285,11 @@ const offPlatformPush: Rule = (input) => {
     id: "offplatform-push",
     category: "sender-identity",
     severity: "high",
-    title: "Pushes you to chat on WhatsApp / Telegram / Signal",
+    title: "Moves the conversation onto an unmonitored channel",
     detail:
-      "Scammers move fast to an unmonitored app where there is no employer " +
-      "record and no way to verify who you are talking to.",
+      "Scammers move fast to WhatsApp, Telegram, Signal, or a plain SMS thread " +
+      "with a third party — somewhere there is no employer record and no way to " +
+      "verify who you are talking to.",
     evidence: ev,
     advice:
       "Keep communication on the original platform or company email until the " +
@@ -353,6 +358,8 @@ const urgencyPatterns = [
   /\b(limited (slots|spots|positions)|positions? (are )?filling fast|only \d+ (slots|spots) left)\b/i,
   /\b(respond|reply|confirm|act) (with)?in (the next )?\d+ ?(min(ute)?s?|hours?|hrs?)\b/i,
   /\b(today only|act now|don'?t miss (this|out)|immediate start required)\b/i,
+  /\b(remember to|make sure to|be sure to|please) (reply|respond|get back to (me|us))\b[^.]{0,20}\b(in time|promptly|quickly|right away|asap)\b/i,
+  /\b(reply|respond|get back to (me|us))\b[^.]{0,15}\b(in time|promptly)\b/i,
 ];
 
 const urgencyPressure: Rule = (input) => {
@@ -516,9 +523,9 @@ const noExperienceHighPay: Rule = (input) => {
 };
 
 const unsolicitedPatterns = [
-  /\b(found|came across|discovered|stumbled (up)?on) your (profile|resume|cv|cover letter)\b/i,
+  /\b(found|came across|come across|discovered|stumbled (up)?on|seen|saw|viewed|noticed|reviewed|looked at|looked through|impressed by|checked out) your (linkedin |online )?(profile|resume|cv|cover letter|background|experience)\b/i,
   /\byour (profile|resume|cv) (was )?(match(ed|es)?|selected|shortlisted) (for|to)\b/i,
-  /\bwe (got|obtained) your (contact|details|resume) from\b/i,
+  /\bwe (got|obtained|received|were given) your (contact|details|resume|information|number) from\b/i,
 ];
 
 const unsolicitedContact: Rule = (input) => {
@@ -592,6 +599,85 @@ const grammarArtifacts: Rule = (input) => {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Process — recruitment-lure patterns                                        */
+/* -------------------------------------------------------------------------- */
+
+const phoneHarvestPatterns = [
+  /\b(leave|drop|send|share|provide|give|text) (me |us )?(your )?(phone |cell |mobile |contact |best )?(number|phone number)\b/i,
+  /\byour (best )?(contact|phone|cell|mobile) (number|no)\b/i,
+  /\bwhat'?s your (number|phone|cell|mobile)\b/i,
+];
+
+const recruiterPhoneHarvest: Rule = (input) => {
+  const ev = evidenceFor(input.text, phoneHarvestPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "recruiter-phone-harvest",
+    category: "process",
+    severity: "medium",
+    title: "Asks for your phone number up front instead of scheduling",
+    detail:
+      "Rather than booking a call through the platform or a company email, the " +
+      'sender wants your number so someone else can "reach out". It is a common ' +
+      "way to move you onto an unmonitored channel and away from any record.",
+    evidence: ev,
+    advice:
+      "Don't share your number until you have confirmed the company and role on " +
+      "its official website.",
+  };
+};
+
+const leaderHandoffPatterns = [
+  /\bmy (leader|leadership)\b/i,
+  /\b(forward|pass|send|give) (it|you|your (info|details|number|message|contact)) to my (leader|leadership|manager|supervisor|boss|senior|superior)\b/i,
+  /\b(my|our|the) (leader|leadership|project manager|senior manager|supervisor|superior|colleague) will (contact|reach out to|get in touch with|call|add|inform|update|message) you\b/i,
+  /\barrange for (a|an|our|my) [a-z ]{0,25}(manager|leader|colleague|representative|supervisor) to contact you\b/i,
+];
+
+const unnamedLeaderHandoff: Rule = (input) => {
+  const ev = evidenceFor(input.text, leaderHandoffPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "unnamed-leader-handoff",
+    category: "process",
+    severity: "high",
+    title: 'Hands you off to an unnamed "leader" or third party',
+    detail:
+      "A real recruiter names the interviewer and sets a concrete next step. " +
+      'Being passed to "my leader" or a nameless "project manager" who will ' +
+      "contact you separately — often by text — is a scripted-scam pattern.",
+    evidence: ev,
+    advice:
+      "Ask for the person's full name, title, and company email address, then " +
+      "verify them on the company's website before continuing.",
+  };
+};
+
+const attachmentJdPatterns = [
+  /\b(here is|here'?s|attached is|attached please find|find attached|see attached|please find|i have attached) [^.]{0,45}\bjob description\b/i,
+  /\bjob description[^.]{0,45}\.(docx?|pdf|rtf)\b/i,
+  /\.(docx?|pdf|rtf)\s*\d{1,4}\s*(kb|mb)\s*download\b/i,
+];
+
+const jobDescAttachment: Rule = (input) => {
+  const ev = evidenceFor(input.text, attachmentJdPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "job-desc-attachment",
+    category: "process",
+    severity: "low",
+    title: "Sends the job description as a file to download",
+    detail:
+      "Legitimate recruiters usually paste the description or link to the live " +
+      "posting. An unsolicited .docx or .pdf can carry malware.",
+    evidence: ev,
+    advice:
+      "Don't open the file. Ask for the role in plain text or a link to the " +
+      "company careers page.",
+  };
+};
+
+/* -------------------------------------------------------------------------- */
 /* Registry                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -608,12 +694,15 @@ export const rules: Rule[] = [
   lookalikeDomain,
   replyToMismatch,
   offPlatformPush,
+  unnamedLeaderHandoff,
+  recruiterPhoneHarvest,
   unrealisticPay,
   noExperienceHighPay,
   hiredNoInterview,
   urgencyPressure,
   unsolicitedContact,
   vagueRole,
+  jobDescAttachment,
   genericGreeting,
   grammarArtifacts,
 ];

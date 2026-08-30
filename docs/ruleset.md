@@ -4,7 +4,7 @@ The catalog the detection engine implements. Each rule is a pure function in
 `src/engine/rules.ts` that inspects a normalized input and, on a match, returns a
 `Finding`. Keep this document and that file in sync.
 
-**Status:** all 19 rules below are implemented, each with a positive test (and,
+**Status:** all 22 rules below are implemented, each with a positive test (and,
 where it matters, a negative test) in `src/engine/rules.test.ts`.
 
 ## Input shape
@@ -31,9 +31,15 @@ The engine normalizes user input into:
 ## Verdict bands
 
 1. Any `critical` finding → **Very likely a scam**
-2. Score ≥ 45 → **High risk**
-3. Score ≥ 20 → **Caution — verify before proceeding**
-4. Otherwise → **No strong signal — still verify independently**
+2. **Combination escalation** → **Very likely a scam**, even with no `critical`:
+   - score ≥ 80 with ≥ 4 findings, or
+   - ≥ 2 `high` findings with ≥ 5 findings total.
+   Rationale: a stack of independent red flags is scam-level on its own; some
+   lures (e.g. "leave your number, my leader will contact you") never cross a
+   money/PII red line but are unmistakable in aggregate.
+3. Score ≥ 45 → **High risk**
+4. Score ≥ 20 → **Caution — verify before proceeding**
+5. Otherwise → **No strong signal — still verify independently**
 
 The verdict is never "safe". Absence of red flags is not proof of legitimacy, and
 the UI must say so.
@@ -64,7 +70,7 @@ the UI must say so.
 | `domain-company-mismatch` | high | `fromEmail` domain does not contain / align with `claimedCompany` slug |
 | `lookalike-domain` | high | domain contains a known brand with an inserted/!swapped char, extra word, or odd TLD (e.g. `-careers`, `.online`, `.info`, digits substituted for letters) |
 | `replyto-mismatch` | medium | `replyToEmail` domain ≠ `fromEmail` domain |
-| `offplatform-push` | high | "contact me on" / "message me on" / "add me on" + (whatsapp / telegram / signal / skype) |
+| `offplatform-push` | high | "contact me on" + (whatsapp / telegram / signal / skype); also handoff to an SMS thread or a third party's chat ("reply to my leader's message", "added your text message", "continue by text") |
 
 ### Offer / content — medium / low
 
@@ -73,11 +79,19 @@ the UI must say so.
 | `unrealistic-pay` | high | pay figure parsed (`$NNN/day`, `$N,NNN/week`) that is implausibly high for described low-skill work, or phrases like "earn $500 a day" + "simple tasks" |
 | `no-experience-high-pay` | medium | "no experience" / "no skills needed" / "anyone can do" near a pay figure |
 | `hired-no-interview` | high | "you are hired" / "offer" / "start immediately" with no mention of interview, or "interview" only via chat app |
-| `urgency-pressure` | medium | "limited slots", "respond within", "act now", "today only", "positions filling fast" |
-| `unsolicited-contact` | low | "found your profile", "came across your resume", "your profile matched" + no application referenced |
+| `urgency-pressure` | medium | "limited slots", "respond within", "act now", "today only", "positions filling fast", "remember to reply in time" |
+| `unsolicited-contact` | low | "found/seen/viewed/noticed your profile", "came across your resume", "your profile matched", "we got your contact from" + no application referenced |
 | `generic-greeting` | low | "dear candidate", "dear applicant", "hello dear", "dear sir/madam" |
 | `vague-role` | low | no concrete job title, team, or product named anywhere in the text |
 | `grammar-artifacts` | low | multiple sentence-start lowercase, double spaces, ALL-CAPS runs, "kindly" + "revert back" |
+
+### Process — recruitment-lure patterns
+
+| id | Severity | Matches |
+|---|---|---|
+| `recruiter-phone-harvest` | medium | "leave/drop/send your (phone) number", "your best contact number", "what's your number" — number requested up front instead of scheduling |
+| `unnamed-leader-handoff` | high | "my leader" / "my leadership", "forward it to my leader/manager", "my leader will contact you", "arrange for a project manager to contact you" |
+| `job-desc-attachment` | low | "here is your job description …", "job description … .docx/.pdf", ".docx NN KB Download" — JD delivered as a downloadable file |
 
 ## Findings output
 

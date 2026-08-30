@@ -18,7 +18,7 @@ describe("rule registry", () => {
   });
 
   it("exposes every rule as a function", () => {
-    expect(rules.length).toBeGreaterThanOrEqual(18);
+    expect(rules.length).toBeGreaterThanOrEqual(22);
     expect(rules.every((r) => typeof r === "function")).toBe(true);
   });
 });
@@ -182,6 +182,52 @@ describe("offer-content and process rules", () => {
     expect(
       firedIds({ text: "We came across your resume and think you're a great fit." }),
     ).toContain("unsolicited-contact");
+  });
+
+  it('unsolicited-contact also catches "seen your profile on LinkedIn"', () => {
+    expect(
+      firedIds({
+        text: "I have seen your profile on LinkedIn and you have great experience.",
+      }),
+    ).toContain("unsolicited-contact");
+  });
+
+  it("recruiter-phone-harvest: asked to leave a number", () => {
+    expect(
+      firedIds({
+        text: "If you are interested, please leave your phone number and we will call you.",
+      }),
+    ).toContain("recruiter-phone-harvest");
+  });
+
+  it("unnamed-leader-handoff: passed to 'my leader'", () => {
+    expect(
+      firedIds({
+        text: "I will forward it to my leadership and my leader will contact you shortly.",
+      }),
+    ).toContain("unnamed-leader-handoff");
+  });
+
+  it("offplatform-push: handoff to an SMS thread", () => {
+    expect(
+      firedIds({
+        text: "My leader just added your text message, so reply to my leader's message.",
+      }),
+    ).toContain("offplatform-push");
+  });
+
+  it("job-desc-attachment: job description sent as a .docx", () => {
+    expect(
+      firedIds({
+        text: "Here is your job description Support Specialist role.docx 11 KB Download",
+      }),
+    ).toContain("job-desc-attachment");
+  });
+
+  it('urgency-pressure also catches "remember to reply in time"', () => {
+    expect(
+      firedIds({ text: "Thanks, remember to reply in time so we can proceed." }),
+    ).toContain("urgency-pressure");
   });
 
   it("unsolicited-contact stays quiet if the person applied", () => {

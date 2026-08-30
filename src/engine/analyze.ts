@@ -20,9 +20,9 @@ const SEVERITY_WEIGHT: Record<Severity, number> = {
 
 const VERDICT_SUMMARY: Record<Verdict, string> = {
   "very-likely-scam":
-    "This has one or more signs that almost never appear in a legitimate " +
-    "hiring process. Do not send money or personal information, and stop " +
-    "contact.",
+    "This matches known recruiting-scam patterns that rarely, if ever, appear " +
+    "together in a legitimate hiring process. Don't send money, personal " +
+    "information, or documents, and stop contact.",
   "high-risk":
     "Several strong warning signs are present. Do not proceed until you have " +
     "independently verified the employer through its official website.",
@@ -55,6 +55,13 @@ function scoreOf(findings: Finding[]): number {
 
 function verdictFor(findings: Finding[], score: number): Verdict {
   if (findings.some((f) => f.severity === "critical")) return "very-likely-scam";
+
+  // A pile of independent red flags is itself scam-level, even when no single
+  // "red line" (money / personal data) has been crossed yet.
+  const highCount = findings.filter((f) => f.severity === "high").length;
+  if (score >= 80 && findings.length >= 4) return "very-likely-scam";
+  if (highCount >= 2 && findings.length >= 5) return "very-likely-scam";
+
   if (score >= 45) return "high-risk";
   if (score >= 20) return "caution";
   return "no-strong-signal";
