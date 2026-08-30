@@ -1,0 +1,224 @@
+import { describe, expect, it } from "vitest";
+import { runRules, rules } from "./rules";
+import type { CheckInput } from "./types";
+
+/** Convenience: which rule ids fired for this input. */
+function firedIds(input: CheckInput): string[] {
+  return runRules(input).map((f) => f.id);
+}
+
+describe("rule registry", () => {
+  it("has unique rule ids", () => {
+    const ids = runRules({
+      text:
+        "You are hired! Pay a refundable deposit via gift card and top up your " +
+        "USDT wallet. Send your SSN and bank account. Contact me on Telegram.",
+    }).map((f) => f.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("exposes every rule as a function", () => {
+    expect(rules.length).toBeGreaterThanOrEqual(18);
+    expect(rules.every((r) => typeof r === "function")).toBe(true);
+  });
+});
+
+describe("money rules", () => {
+  it("pay-to-start: fee for equipment/training", () => {
+    expect(
+      firedIds({ text: "You must pay for your training equipment upfront." }),
+    ).toContain("pay-to-start");
+  });
+
+  it("wire-or-forward-funds: deposit check then wire the balance", () => {
+    expect(
+      firedIds({
+        text: "Deposit the check we send, then wire the remaining balance to our vendor.",
+      }),
+    ).toContain("wire-or-forward-funds");
+  });
+
+  it("crypto-topup: negative balance, top up wallet to withdraw", () => {
+    expect(
+      firedIds({
+        text: "Your balance is negative — top up your crypto wallet to unlock withdrawals.",
+      }),
+    ).toContain("crypto-topup");
+  });
+
+  it("gift-cards", () => {
+    expect(firedIds({ text: "Please send payment as an Apple gift card." })).toContain(
+      "gift-cards",
+    );
+  });
+
+  it("does not fire money rules on a clean note", () => {
+    const ids = firedIds({
+      text: "We cover all equipment costs and reimburse home-office expenses.",
+    });
+    expect(ids).not.toContain("pay-to-start");
+    expect(ids).not.toContain("wire-or-forward-funds");
+  });
+});
+
+describe("personal-data rules", () => {
+  it("pii-before-offer", () => {
+    expect(
+      firedIds({ text: "Send your Social Security number and routing number to onboard." }),
+    ).toContain("pii-before-offer");
+  });
+
+  it("account-credentials", () => {
+    expect(
+      firedIds({ text: "Reply with the one-time verification code we just sent you." }),
+    ).toContain("account-credentials");
+  });
+});
+
+describe("sender-identity rules", () => {
+  it("freemail-sender when a company is claimed", () => {
+    expect(
+      firedIds({
+        text: "I'm on the talent team.",
+        fromEmail: "recruiter@gmail.com",
+        claimedCompany: "Globex Inc",
+      }),
+    ).toContain("freemail-sender");
+  });
+
+  it("domain-company-mismatch", () => {
+    expect(
+      firedIds({
+        text: "Reaching out from the hiring team.",
+        fromEmail: "hr@totally-different.com",
+        claimedCompany: "Initech",
+      }),
+    ).toContain("domain-company-mismatch");
+  });
+
+  it("lookalike-domain: bolt-on word", () => {
+    expect(
+      firedIds({ text: "Job offer attached.", fromEmail: "hr@initech-careers.com" }),
+    ).toContain("lookalike-domain");
+  });
+
+  it("lookalike-domain: suspicious TLD", () => {
+    expect(
+      firedIds({ text: "Job offer attached.", fromEmail: "jobs@initech.online" }),
+    ).toContain("lookalike-domain");
+  });
+
+  it("lookalike-domain: brand token that isn't the real domain", () => {
+    expect(
+      firedIds({ text: "Hello.", fromEmail: "careers@google-hiring-team.com" }),
+    ).toContain("lookalike-domain");
+  });
+
+  it("replyto-mismatch", () => {
+    expect(
+      firedIds({
+        text: "Thanks for your interest.",
+        fromEmail: "recruiter@acme.com",
+        replyToEmail: "collector@mail.ru",
+      }),
+    ).toContain("replyto-mismatch");
+  });
+
+  it("offplatform-push", () => {
+    expect(
+      firedIds({ text: "Please contact me on WhatsApp to continue the process." }),
+    ).toContain("offplatform-push");
+  });
+
+  it("does not flag a matching corporate domain", () => {
+    const ids = firedIds({
+      text: "From the recruiting team.",
+      fromEmail: "jane@initech.com",
+      claimedCompany: "Initech",
+    });
+    expect(ids).not.toContain("freemail-sender");
+    expect(ids).not.toContain("domain-company-mismatch");
+    expect(ids).not.toContain("lookalike-domain");
+  });
+});
+
+describe("offer-content and process rules", () => {
+  it("unrealistic-pay: high pay for simple tasks", () => {
+    expect(
+      firedIds({ text: "Earn $400 a day doing simple data entry tasks from home." }),
+    ).toContain("unrealistic-pay");
+  });
+
+  it("no-experience-high-pay", () => {
+    expect(
+      firedIds({
+        text: "No experience is needed and the salary starts at $5,000 per month.",
+      }),
+    ).toContain("no-experience-high-pay");
+  });
+
+  it("hired-no-interview", () => {
+    expect(
+      firedIds({ text: "Congratulations, you are hired. You can start immediately." }),
+    ).toContain("hired-no-interview");
+  });
+
+  it("hired-no-interview stays quiet when a real interview is described", () => {
+    expect(
+      firedIds({
+        text:
+          "We would like to offer you the role after your video call with the hiring panel.",
+      }),
+    ).not.toContain("hired-no-interview");
+  });
+
+  it("urgency-pressure", () => {
+    expect(
+      firedIds({ text: "Only 2 slots left — respond within 15 minutes to secure yours." }),
+    ).toContain("urgency-pressure");
+  });
+
+  it("unsolicited-contact", () => {
+    expect(
+      firedIds({ text: "We came across your resume and think you're a great fit." }),
+    ).toContain("unsolicited-contact");
+  });
+
+  it("unsolicited-contact stays quiet if the person applied", () => {
+    expect(
+      firedIds({
+        text: "Thanks for the application you submitted; we came across your resume in our system.",
+      }),
+    ).not.toContain("unsolicited-contact");
+  });
+
+  it("vague-role: long message about an 'opportunity' with no job title", () => {
+    const text =
+      "Hello, we have a fantastic remote opportunity with our growing organisation. " +
+      "The position offers flexible hours, weekly pay, and full support from our friendly " +
+      "onboarding staff. Reply to express your interest and we will share the next steps " +
+      "with you shortly. We look forward to welcoming you to the team very soon.";
+    expect(firedIds({ text })).toContain("vague-role");
+  });
+
+  it("vague-role stays quiet when a title is named", () => {
+    const text =
+      "Hello, we have a fantastic remote opportunity for a marketing analyst with our " +
+      "growing organisation. The position offers flexible hours and weekly pay plus full " +
+      "support from our onboarding staff. Reply to express your interest and we will share " +
+      "the next steps with you shortly.";
+    expect(firedIds({ text })).not.toContain("vague-role");
+  });
+
+  it("generic-greeting", () => {
+    expect(firedIds({ text: "Dear Candidate, we are pleased to contact you." })).toContain(
+      "generic-greeting",
+    );
+  });
+
+  it("grammar-artifacts: multiple template tells", () => {
+    expect(
+      firedIds({ text: "Kindly revert back to us with your details at the earliest." }),
+    ).toContain("grammar-artifacts");
+  });
+});

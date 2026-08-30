@@ -391,6 +391,206 @@ const genericGreeting: Rule = (input) => {
   };
 };
 
+/** TLDs disproportionately used for throwaway impersonation domains. */
+const SUSPICIOUS_TLDS = new Set([
+  "online",
+  "info",
+  "site",
+  "xyz",
+  "top",
+  "click",
+  "buzz",
+  "work",
+  "shop",
+  "icu",
+  "cyou",
+  "sbs",
+]);
+
+/** Well-known employer/brand tokens people try to impersonate. */
+const BRAND_TOKENS = [
+  "google",
+  "microsoft",
+  "apple",
+  "amazon",
+  "meta",
+  "linkedin",
+  "netflix",
+  "oracle",
+  "deloitte",
+  "accenture",
+  "pwc",
+  "kpmg",
+  "cisco",
+  "adobe",
+  "salesforce",
+];
+
+const lookalikeDomain: Rule = (input) => {
+  const domain = emailDomain(input.fromEmail);
+  if (!domain || FREEMAIL_DOMAINS.has(domain)) return null;
+
+  const parts = domain.split(".");
+  const tld = parts[parts.length - 1];
+  const core = parts.slice(0, -1).join(".");
+  const reasons: string[] = [];
+
+  if (/[-.](careers?|hr|jobs?|recruit(ing|ment)?|talent|hiring|apply)$/.test(core) ||
+      /^(careers?|hr|jobs?|recruit(ing|ment)?|talent|hiring|apply)[-.]/.test(core)) {
+    reasons.push('bolt-on word like "-careers" or "hr-"');
+  }
+  if (SUSPICIOUS_TLDS.has(tld)) {
+    reasons.push(`unusual .${tld} domain ending`);
+  }
+  for (const brand of BRAND_TOKENS) {
+    if (core.includes(brand) && core !== brand && !core.endsWith(`.${brand}`)) {
+      reasons.push(`contains "${brand}" but is not that company's real domain`);
+      break;
+    }
+  }
+  if (/\d/.test(core.replace(/\d{4,}/g, "")) && /[a-z]/.test(core)) {
+    // digits mixed into an otherwise alphabetic name (e.g. g00gle, amaz0n)
+    if (/[a-z]\d|\d[a-z]/.test(core)) reasons.push("digits substituted for letters");
+  }
+
+  if (!reasons.length) return null;
+  return {
+    id: "lookalike-domain",
+    category: "sender-identity",
+    severity: "high",
+    title: `Sending domain "${domain}" looks like an impersonation`,
+    detail:
+      "The domain is built to resemble a real company at a glance: " +
+      reasons.join("; ") +
+      ". Real recruiters use the company's plain primary domain.",
+    evidence: [input.fromEmail ?? domain],
+    advice:
+      "Type the company's name into a search engine and compare the domain to " +
+      "the one on their official site.",
+  };
+};
+
+const replyToMismatch: Rule = (input) => {
+  const from = emailDomain(input.fromEmail);
+  const reply = emailDomain(input.replyToEmail);
+  if (!from || !reply || from === reply) return null;
+  return {
+    id: "replyto-mismatch",
+    category: "sender-identity",
+    severity: "medium",
+    title: `Replies go to a different domain (${reply}, not ${from})`,
+    detail:
+      "The visible sender and the address that receives your reply don't " +
+      "match, a common trick to catch replies at an attacker-controlled inbox.",
+    evidence: [
+      `From: ${input.fromEmail ?? from}`,
+      `Reply-To: ${input.replyToEmail ?? reply}`,
+    ],
+    advice: "Don't reply directly. Contact the company through its own website.",
+  };
+};
+
+const noExperiencePatterns = [
+  /\bno (experience|skills?|qualifications?|degree|resume|cv)\s+(is\s+)?(needed|required|necessary)\b/i,
+  /\b(anyone|everyone) can (do|apply)\b/i,
+  /\bno interview (needed|required)\b/i,
+];
+
+const noExperienceHighPay: Rule = (input) => {
+  const ev = evidenceFor(input.text, noExperiencePatterns);
+  if (!ev.length) return null;
+  const hasPayFigure = /\$\s?\d/.test(input.text) ||
+    /\b(salary|pay|compensation|earn)\b/i.test(input.text);
+  if (!hasPayFigure) return null;
+  return {
+    id: "no-experience-high-pay",
+    category: "offer-content",
+    severity: "medium",
+    title: 'Promises pay while asking for "no experience"',
+    detail:
+      "Legitimate paid roles have requirements. Pairing a salary with " +
+      '"no experience needed" is a hallmark of recruitment fraud.',
+    evidence: ev,
+    advice: "Look for the same title on real job boards and compare the ask.",
+  };
+};
+
+const unsolicitedPatterns = [
+  /\b(found|came across|discovered|stumbled (up)?on) your (profile|resume|cv|cover letter)\b/i,
+  /\byour (profile|resume|cv) (was )?(match(ed|es)?|selected|shortlisted) (for|to)\b/i,
+  /\bwe (got|obtained) your (contact|details|resume) from\b/i,
+];
+
+const unsolicitedContact: Rule = (input) => {
+  const ev = evidenceFor(input.text, unsolicitedPatterns);
+  if (!ev.length) return null;
+  const applied = /\b(you (applied|submitted)|your application|the role you applied)\b/i.test(
+    input.text,
+  );
+  if (applied) return null;
+  return {
+    id: "unsolicited-contact",
+    category: "offer-content",
+    severity: "low",
+    title: "Unsolicited — you never applied",
+    detail:
+      "Not a problem by itself, but scam outreach almost always starts this " +
+      "way, so weigh it with everything else here.",
+    evidence: ev,
+    advice: "Be extra careful verifying an opportunity that came to you cold.",
+  };
+};
+
+const ROLE_WORDS =
+  /\b(engineer|developer|programmer|manager|designer|analyst|specialist|coordinator|assistant|representative|consultant|administrator|director|technician|nurse|accountant|clerk|agent|associate|architect|scientist|writer|editor|marketer|bookkeeper|paralegal|controller|strategist|officer)\b/i;
+
+const vagueRole: Rule = (input) => {
+  const text = input.text;
+  if (text.length < 200) return null; // too short to judge
+  const talksAboutAJob =
+    /\b(position|role|opportunity|vacancy|opening|job)\b/i.test(text);
+  if (!talksAboutAJob) return null;
+  if (ROLE_WORDS.test(text)) return null;
+  return {
+    id: "vague-role",
+    category: "offer-content",
+    severity: "low",
+    title: "Never names an actual job title",
+    detail:
+      "A real posting says what the job is. A long message about an " +
+      '"opportunity" that never names a role is a warning sign.',
+    evidence: [],
+    advice: "Ask for the exact job title and the team, then verify both.",
+  };
+};
+
+const grammarArtifact = {
+  doubleSpace: /\S {2,}\S/,
+  kindly: /\bkindly\b/i,
+  revert: /\brevert back\b/i,
+  needful: /\bdo the needful\b/i,
+  allCaps: /\b[A-Z]{4,}\b(?:.*\b[A-Z]{4,}\b)/s,
+  lowerStart: /(?:[.!?]\s+[a-z].*){2,}/s,
+};
+
+const grammarArtifacts: Rule = (input) => {
+  const hits = Object.entries(grammarArtifact)
+    .filter(([, re]) => re.test(input.text))
+    .map(([name]) => name);
+  if (hits.length < 2) return null;
+  return {
+    id: "grammar-artifacts",
+    category: "offer-content",
+    severity: "low",
+    title: "Writing style typical of scam templates",
+    detail:
+      'Odd phrasing ("kindly", "revert back"), inconsistent capitalization, ' +
+      "and spacing errors are common in mass scam messages.",
+    evidence: [],
+    advice: "Minor on its own — treat as supporting evidence, not proof.",
+  };
+};
+
 /* -------------------------------------------------------------------------- */
 /* Registry                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -405,11 +605,17 @@ export const rules: Rule[] = [
   accountCredentials,
   freemailSender,
   domainCompanyMismatch,
+  lookalikeDomain,
+  replyToMismatch,
   offPlatformPush,
   unrealisticPay,
+  noExperienceHighPay,
   hiredNoInterview,
   urgencyPressure,
+  unsolicitedContact,
+  vagueRole,
   genericGreeting,
+  grammarArtifacts,
 ];
 
 /** Run every rule against the input and collect the findings. */
