@@ -1,0 +1,25 @@
+# Dependencies (once a build toolchain is added)
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
