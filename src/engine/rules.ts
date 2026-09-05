@@ -162,6 +162,93 @@ const giftCards: Rule = (input) => {
   };
 };
 
+/** Any mention of the applicant's CV — context gate for the CV-upsell rules. */
+const cvMention = /\b(cv|resume|résumé)\b/i;
+
+const cvServiceReferralPatterns = [
+  // Pointed at a freelance marketplace. Requires a directive verb so a job
+  // description that merely mentions managing Fiverr freelancers won't match.
+  /\b(go to|head (to|over)|check out|use|try|visit|sign up (on|to|for)|find (someone|a writer) on|there'?s (a|someone) on|i (use|recommend)|recommended?)\b[^.]{0,50}\b(fiverr|upwork|freelancer\.com|peopleperhour)\b/i,
+  // A named CV-writing service.
+  /\b(cv|resume|résumé)[- ]?(writer|writing service|writing agency|specialist|consultant|expert)\b/i,
+  // "I know someone who can sort your CV out."
+  /\b(i (can )?(recommend|refer|connect you (to|with))|i know (a|someone)|my (colleague|contact|friend|partner))\b[^.]{0,70}\b(cv|resume|résumé|rewrite|rewriting)\b/i,
+  // CV work attached to a price.
+  /\b(cv|resume|résumé)\b[^.]{0,70}\b((small|nominal|one[- ]time|modest) (fee|charge|cost)|costs? (only |just )?\$|starts? (at|from) \$|payment plan)\b/i,
+];
+
+const cvServiceReferral: Rule = (input) => {
+  if (!cvMention.test(input.text)) return null;
+  const ev = evidenceFor(input.text, cvServiceReferralPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "cv-service-referral",
+    category: "money",
+    severity: "critical",
+    title: "Routes you to a paid CV/resume service",
+    detail:
+      "A real recruiter is paid by the employer and has no reason to send you " +
+      "somewhere to buy a CV rewrite. In this scam the “recruiter” and the " +
+      "writer are often the same person, and the job never existed.",
+    evidence: ev,
+    advice:
+      "Do not pay anyone to rewrite your CV in order to be considered. Walk " +
+      "away and report the profile.",
+  };
+};
+
+const cvCriticismPatterns = [
+  /\byour (cv|resume|résumé)\b[^.]{0,50}\b(is|isn'?t|looks|seems|won'?t|will not|needs?|requires?)\b[^.]{0,40}\b(weak|poor|bad|terrible|outdated|old[- ]fashioned|not (good|strong) enough|improve[md]?|improvement|rewritten|rewrite|revamp(ed)?|updating|optimi[sz]ed?|reformatted|professionally (written|formatted))\b/i,
+  /\b(cv|resume|résumé)\b[^.]{0,40}\b(won'?t|will not|does ?n'?t|failed to) (pass|get (past|through)|make it (past|through)|beat)\b[^.]{0,25}\b(ats|applicant tracking|our system|the system|screening)\b/i,
+  /\b(ats)[- ](friendly|optimi[sz]ed|compliant|ready)\b/i,
+  /\b(before (i|we) (can|could) (submit|proceed|send|forward)|in order to (proceed|submit))\b[^.]{0,60}\b(cv|resume|résumé)\b/i,
+];
+
+const cvCriticismPressure: Rule = (input) => {
+  const ev = evidenceFor(input.text, cvCriticismPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "cv-criticism-pressure",
+    category: "process",
+    severity: "medium",
+    title: "Runs down your CV and pushes you to get it rewritten",
+    detail:
+      "Manufacturing a problem with your CV is the setup step for a paid " +
+      "rewrite pitch. Genuine recruiters give feedback for free, or submit you " +
+      "as you are.",
+    evidence: ev,
+    advice:
+      "If a paid service is suggested next, stop. Ask instead which specific " +
+      "role they are submitting you for.",
+  };
+};
+
+const flatteryPatterns = [
+  /\b(brilliant|outstanding|exceptional|remarkable|extraordinary|stellar|phenomenal)\b/i,
+  /\b(rare (talent|find|combination)|one in a million|perfect (candidate|fit|match)|exactly what (we|our client)('| a)?(re| is)? (looking for|need))\b/i,
+  /\b(blown away|truly impressed|really impressed|so impressed|highly impressed)\b/i,
+  /\byour (profile|background|experience|career)\b[^.]{0,30}\b(stood out|caught my eye|really stands out)\b/i,
+];
+
+const flatteryHook: Rule = (input) => {
+  // One compliment is ordinary recruiter language; a pile of them is a hook.
+  const ev = evidenceFor(input.text, flatteryPatterns);
+  if (ev.length < 2) return null;
+  return {
+    id: "flattery-hook",
+    category: "offer-content",
+    severity: "low",
+    title: "Lays on heavy praise before saying anything concrete",
+    detail:
+      "Stacked flattery early in an unsolicited approach is a rapport-building " +
+      "tactic — it makes the ask that follows harder to refuse.",
+    evidence: ev,
+    advice:
+      "Weak on its own. Note what they actually offer: a named role, a company, " +
+      "and a written description.",
+  };
+};
+
 /* -------------------------------------------------------------------------- */
 /* Personal data — critical                                                   */
 /* -------------------------------------------------------------------------- */
@@ -678,7 +765,7 @@ const recruiterPhoneHarvest: Rule = (input) => {
 const leaderHandoffPatterns = [
   /\bmy (leader|leadership)\b/i,
   /\b(forward|pass|send|give) (it|you|your (info|details|number|message|contact)) to my (leader|leadership|manager|supervisor|boss|senior|superior)\b/i,
-  /\b(my|our|the) (leader|leadership|project manager|senior manager|supervisor|superior|colleague) will (contact|reach out to|get in touch with|call|add|inform|update|message) you\b/i,
+  /\b(my|our|the) (leader|leadership|boss|manager|project manager|senior manager|supervisor|superior|colleague) will (contact|reach out to|get in touch with|call|add|inform|update|message|email) you\b/i,
   /\barrange for (a|an|our|my) [a-z ]{0,25}(manager|leader|colleague|representative|supervisor) to contact you\b/i,
 ];
 
@@ -735,6 +822,7 @@ export const rules: Rule[] = [
   wireOrForwardFunds,
   cryptoTopup,
   giftCards,
+  cvServiceReferral,
   piiBeforeOffer,
   accountCredentials,
   freemailSender,
@@ -744,6 +832,8 @@ export const rules: Rule[] = [
   offPlatformPush,
   unnamedLeaderHandoff,
   recruiterPhoneHarvest,
+  cvCriticismPressure,
+  flatteryHook,
   unrealisticPay,
   noExperienceHighPay,
   hiredNoInterview,

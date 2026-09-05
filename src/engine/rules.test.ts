@@ -18,7 +18,7 @@ describe("rule registry", () => {
   });
 
   it("exposes every rule as a function", () => {
-    expect(rules.length).toBeGreaterThanOrEqual(22);
+    expect(rules.length).toBeGreaterThanOrEqual(25);
     expect(rules.every((r) => typeof r === "function")).toBe(true);
   });
 });
@@ -50,6 +50,38 @@ describe("money rules", () => {
     expect(firedIds({ text: "Please send payment as an Apple gift card." })).toContain(
       "gift-cards",
     );
+  });
+
+  it("cv-service-referral: sent to Fiverr for a rewrite", () => {
+    expect(
+      firedIds({
+        text: "Your CV needs work — go to Fiverr and find a writer to fix it first.",
+      }),
+    ).toContain("cv-service-referral");
+  });
+
+  it("cv-service-referral: named CV writing service", () => {
+    expect(
+      firedIds({ text: "I'll pass you to our CV writing service before we submit." }),
+    ).toContain("cv-service-referral");
+  });
+
+  it("cv-service-referral: CV work attached to a fee", () => {
+    expect(
+      firedIds({
+        text: "We can get your resume reworked for a small fee before submission.",
+      }),
+    ).toContain("cv-service-referral");
+  });
+
+  it("cv-service-referral ignores a job that merely mentions Fiverr", () => {
+    expect(
+      firedIds({
+        text:
+          "The role involves managing Fiverr freelancers and agency partners. " +
+          "Please send your CV if that sounds interesting.",
+      }),
+    ).not.toContain("cv-service-referral");
   });
 
   it("does not fire money rules on a clean note", () => {
@@ -235,6 +267,44 @@ describe("offer-content and process rules", () => {
         text: "Here is your job description Support Specialist role.docx 11 KB Download",
       }),
     ).toContain("job-desc-attachment");
+  });
+
+  it("cv-criticism-pressure: your CV is run down", () => {
+    expect(
+      firedIds({ text: "Honestly your CV is weak and needs to be rewritten." }),
+    ).toContain("cv-criticism-pressure");
+  });
+
+  it("cv-criticism-pressure: ATS fear framing", () => {
+    expect(
+      firedIds({ text: "Your resume won't get past the ATS in its current state." }),
+    ).toContain("cv-criticism-pressure");
+  });
+
+  it("flattery-hook: stacked praise", () => {
+    expect(
+      firedIds({
+        text:
+          "You are a brilliant, exceptional candidate — truly impressed by what " +
+          "I saw. You are exactly what we are looking for.",
+      }),
+    ).toContain("flattery-hook");
+  });
+
+  it("flattery-hook stays quiet on a single ordinary compliment", () => {
+    expect(
+      firedIds({
+        text:
+          "Your background is a strong match and I was impressed by your work at " +
+          "Northwind. Would you be open to a call about the backend role?",
+      }),
+    ).not.toContain("flattery-hook");
+  });
+
+  it('unnamed-leader-handoff also catches "my boss will email you"', () => {
+    expect(
+      firedIds({ text: "Send me your email address and my boss will email you." }),
+    ).toContain("unnamed-leader-handoff");
   });
 
   it('urgency-pressure also catches "remember to reply in time"', () => {

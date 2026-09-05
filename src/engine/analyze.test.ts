@@ -95,6 +95,23 @@ Recruiter: My leader just added your text message so you can check it out and re
     expect(["high-risk", "very-likely-scam"]).toContain(result.verdict);
   });
 
+  it("flags the CV-rewrite upsell run by a fake recruiter", () => {
+    const text = `Hi, I came across your profile and honestly you are a brilliant, exceptional candidate — truly impressed by your background. You are exactly what we are looking for.
+
+Before I put you forward, could you send me your CV?
+
+Thanks. To be blunt, your CV is weak and it won't get past the ATS in its current state. I can't submit this to my client as it is.
+
+Good news — I know someone who can rewrite your CV properly. Go to Fiverr and look up the profile I've linked; the package starts at $90 and turnaround is 48 hours. Once that's done I'll submit you straight away.`;
+
+    const result = analyze({ text, channel: "linkedin" });
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toContain("cv-service-referral");
+    expect(ids).toContain("cv-criticism-pressure");
+    expect(ids).toContain("flattery-hook");
+    expect(result.verdict).toBe("very-likely-scam");
+  });
+
   it("every finding carries evidence and advice", () => {
     const result = analyze({
       text:

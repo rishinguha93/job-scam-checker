@@ -4,7 +4,7 @@ The catalog the detection engine implements. Each rule is a pure function in
 `src/engine/rules.ts` that inspects a normalized input and, on a match, returns a
 `Finding`. Keep this document and that file in sync.
 
-**Status:** all 22 rules below are implemented, each with a positive test (and,
+**Status:** all 25 rules below are implemented, each with a positive test (and,
 where it matters, a negative test) in `src/engine/rules.test.ts`.
 
 ## Input shape
@@ -70,6 +70,7 @@ the UI must say so.
 | `wire-or-forward-funds` | "wire", "send the remaining", "forward the funds", "transfer the balance", "send back" | Fake-check / money-mule pattern. |
 | `crypto-topup` | "crypto", "usdt", "bitcoin", "wallet", "binance", "deposit to unlock", "recharge", "top up" + task/commission context | Task-scam withdrawal trap. |
 | `gift-cards` | "gift card", "steam card", "apple card", "google play card" | Never a legitimate payroll instrument. |
+| `cv-service-referral` | CV/resume mentioned **and** one of: a directive pointing at Fiverr/Upwork/etc., a named "CV writing service", "I know someone who can rewrite your CV", or CV work attached to a fee/price | The CV-rewrite upsell. Money is laundered through a third-party service the "recruiter" often owns. The directive-verb requirement stops a job spec that merely mentions Fiverr from matching. |
 
 ### Personal data — critical
 
@@ -100,14 +101,16 @@ the UI must say so.
 | `generic-greeting` | low | "dear candidate", "dear applicant", "hello dear", "dear sir/madam" |
 | `vague-role` | low | no concrete job title, team, or product named anywhere in the text |
 | `grammar-artifacts` | low | multiple sentence-start lowercase, double spaces, ALL-CAPS runs, "kindly" + "revert back" |
+| `flattery-hook` | low | **two or more** of: "brilliant/outstanding/exceptional", "rare talent / perfect candidate / exactly what we need", "truly impressed", "your profile stood out". One compliment is normal recruiter language; a stack of them is rapport-building before an ask. |
 
 ### Process — recruitment-lure patterns
 
 | id | Severity | Matches |
 |---|---|---|
 | `recruiter-phone-harvest` | medium | "leave/drop/send your (phone) number", "your best contact number", "what's your number" — number requested up front instead of scheduling |
-| `unnamed-leader-handoff` | high | "my leader" / "my leadership", "forward it to my leader/manager", "my leader will contact you", "arrange for a project manager to contact you" |
+| `unnamed-leader-handoff` | high | "my leader" / "my leadership", "forward it to my leader/manager", "my leader/boss/manager will contact **or email** you", "arrange for a project manager to contact you" |
 | `job-desc-attachment` | low | "here is your job description …", "job description … .docx/.pdf", ".docx NN KB Download" — JD delivered as a downloadable file |
+| `cv-criticism-pressure` | medium | "your CV is weak / needs rewriting", "won't get past the ATS", "ATS-friendly", "before I can submit … your CV" — the manufactured problem that sets up a paid rewrite |
 
 ## Findings output
 

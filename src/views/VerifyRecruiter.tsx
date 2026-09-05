@@ -43,8 +43,14 @@ const ITEMS: CheckItem[] = [
   {
     id: "no-money",
     prompt: "You have not been asked to pay for anything or move any money.",
-    help: "Equipment, training, certifications, and background checks are always the employer's cost.",
+    help: "Equipment, training, certifications, and background checks are always the employer's cost — and so is a CV rewrite. No genuine recruiter sends you to a paid service to be considered.",
     weighted: true,
+  },
+  {
+    id: "survives-scrutiny",
+    prompt:
+      "You told them you'd verify their details — and they engaged, rather than going quiet or vanishing.",
+    help: "Saying \"I'll confirm this with the company directly\" is a cheap, powerful test. Fake profiles often stop replying or disappear within hours.",
   },
   {
     id: "no-pii",
