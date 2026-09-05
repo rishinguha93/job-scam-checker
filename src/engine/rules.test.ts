@@ -149,6 +149,19 @@ describe("offer-content and process rules", () => {
     ).toContain("unrealistic-pay");
   });
 
+  it("unrealistic-pay: high hourly rate for simple tasks", () => {
+    expect(
+      firedIds({ text: "Earn $60/hr doing simple, easy data entry tasks." }),
+    ).toContain("unrealistic-pay");
+  });
+
+  it("unrealistic-pay stays quiet on an ordinary rate ($18/hr research study)", () => {
+    const text =
+      "Paid Research Study for Fluent Bengali Speakers - Remote, up to $18/hr. " +
+      "It's a simple, easy online survey and I came across your profile.";
+    expect(firedIds({ text })).not.toContain("unrealistic-pay");
+  });
+
   it("no-experience-high-pay", () => {
     expect(
       firedIds({

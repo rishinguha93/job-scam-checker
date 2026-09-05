@@ -71,11 +71,6 @@ function evidenceFor(text: string, patterns: RegExp[]): string[] {
   return [...seen];
 }
 
-/** Does any pattern match the text? */
-function anyMatch(text: string, patterns: RegExp[]): boolean {
-  return patterns.some((p) => p.test(text));
-}
-
 /* -------------------------------------------------------------------------- */
 /* Money — critical                                                           */
 /* -------------------------------------------------------------------------- */
@@ -301,17 +296,69 @@ const offPlatformPush: Rule = (input) => {
 /* Offer / content                                                            */
 /* -------------------------------------------------------------------------- */
 
-const unrealisticPayPatterns = [
-  /\$\s?\d{2,4}(?:[.,]\d{2})?\s*(?:\/|per |a )\s?(?:hour|hr|day)\b/i,
-  /\bearn(?:ing)?s? (?:up to )?\$\s?\d{3,4}\b[^.]{0,30}\b(daily|per day|a day|weekly|per week)\b/i,
-  /\$\s?\d,\d{3}\s*(?:\/|per |a )\s?week\b/i,
+type PayUnit = "hour" | "day" | "week";
+
+/**
+ * Pay-figure patterns, each with a capture group around the numeric amount so
+ * the amount itself — not just the presence of a dollar sign — can be judged
+ * against a market-rate threshold below.
+ */
+const payFigurePatterns: { re: RegExp; unit: PayUnit }[] = [
+  { re: /\$\s?(\d{1,4}(?:\.\d{2})?)\s*(?:\/|per |a )\s?(?:hour|hr)\b/gi, unit: "hour" },
+  { re: /\$\s?(\d{1,4}(?:\.\d{2})?)\s*(?:\/|per |a )\s?day\b/gi, unit: "day" },
+  {
+    re: /\bearn(?:ing)?s? (?:up to )?\$\s?(\d{1,3}(?:,\d{3})?)\b[^.]{0,30}\b(?:daily|per day|a day)\b/gi,
+    unit: "day",
+  },
+  {
+    re: /\bearn(?:ing)?s? (?:up to )?\$\s?(\d{1,3}(?:,\d{3})?)\b[^.]{0,30}\b(?:weekly|per week)\b/gi,
+    unit: "week",
+  },
+  { re: /\$\s?(\d{1,2},\d{3})\s*(?:\/|per |a )\s?week\b/gi, unit: "week" },
 ];
+
+/**
+ * Above these, pay for "simple"/low-skill work is implausible enough to be a
+ * lure. Below them it's ordinary gig/hourly pay (e.g. paid research studies
+ * commonly run $10-25/hr) and should not be flagged.
+ */
+const PAY_THRESHOLD: Record<PayUnit, number> = {
+  hour: 40,
+  day: 200,
+  week: 1200,
+};
 
 const simpleWorkNearby =
   /\b(simple|easy|basic|no experience|entry[- ]level|part[- ]time|data entry|copy[- ]?paste|reviewing|liking|rating|clicking)\b/i;
 
+/** Snippet of `text` around a specific match position/length. */
+function snippetAt(text: string, index: number, length: number): string {
+  const pad = 45;
+  const start = Math.max(0, index - pad);
+  const end = Math.min(text.length, index + length + pad);
+  let out = text.slice(start, end).replace(/\s+/g, " ").trim();
+  if (start > 0) out = "…" + out;
+  if (end < text.length) out = out + "…";
+  return out;
+}
+
+/** Pay-figure matches whose amount clears the market-rate threshold for its unit. */
+function findUnrealisticPay(text: string): string[] {
+  const hits: string[] = [];
+  for (const { re, unit } of payFigurePatterns) {
+    for (const m of text.matchAll(re)) {
+      const amount = Number(m[1].replace(/,/g, ""));
+      if (!Number.isNaN(amount) && amount >= PAY_THRESHOLD[unit]) {
+        hits.push(snippetAt(text, m.index, m[0].length));
+      }
+    }
+  }
+  return [...new Set(hits)];
+}
+
 const unrealisticPay: Rule = (input) => {
-  if (!anyMatch(input.text, unrealisticPayPatterns)) return null;
+  const evidence = findUnrealisticPay(input.text);
+  if (!evidence.length) return null;
   if (!simpleWorkNearby.test(input.text)) return null;
   return {
     id: "unrealistic-pay",
@@ -319,9 +366,10 @@ const unrealisticPay: Rule = (input) => {
     severity: "high",
     title: "Pay is far above market for the work described",
     detail:
-      "Offers of several hundred dollars a day for simple, low-skill tasks are " +
-      "a lure. The pay does not correspond to any real job.",
-    evidence: evidenceFor(input.text, unrealisticPayPatterns),
+      "Offers of several hundred dollars a day (or tens of dollars an hour) for " +
+      "simple, low-skill tasks are a lure. The pay does not correspond to any " +
+      "real job.",
+    evidence,
     advice: "Compare the rate to real listings for the same work. Be skeptical.",
   };
 };

@@ -76,7 +76,7 @@ the UI must say so.
 
 | id | Severity | Matches |
 |---|---|---|
-| `unrealistic-pay` | high | pay figure parsed (`$NNN/day`, `$N,NNN/week`) that is implausibly high for described low-skill work, or phrases like "earn $500 a day" + "simple tasks" |
+| `unrealistic-pay` | high | a parsed pay figure clears a market-rate threshold (≥$40/hr, ≥$200/day, ≥$1,200/wk) *and* the text nearby describes simple/low-skill work. The amount is parsed and compared numerically — not just detected — so an ordinary rate like $18/hr (e.g. a paid research study) does not fire. |
 | `no-experience-high-pay` | medium | "no experience" / "no skills needed" / "anyone can do" near a pay figure |
 | `hired-no-interview` | high | "you are hired" / "offer" / "start immediately" with no mention of interview, or "interview" only via chat app |
 | `urgency-pressure` | medium | "limited slots", "respond within", "act now", "today only", "positions filling fast", "remember to reply in time" |
