@@ -21,6 +21,27 @@ const ISSUE_LABEL: Record<InputIssue, string> = {
   "off-topic": "That doesn't look like a recruiting message",
 };
 
+/**
+ * The "no strong signal" band can still carry sub-threshold findings. Showing
+ * those under a green "no strong signal found" heading reads as an all-clear
+ * for something we did flag, so that combination gets its own wording and a
+ * neutral colour instead.
+ */
+function isInconclusive(result: AnalysisResult): boolean {
+  return result.verdict === "no-strong-signal" && result.findings.length > 0;
+}
+
+function labelFor(result: AnalysisResult): string {
+  if (result.issue) return ISSUE_LABEL[result.issue];
+  if (isInconclusive(result)) return "Nothing decisive — but check these";
+  return VERDICT_META[result.verdict].label;
+}
+
+function toneFor(result: AnalysisResult): string {
+  if (isInconclusive(result)) return "neutral";
+  return VERDICT_META[result.verdict].tone;
+}
+
 const CATEGORY_LABEL: Record<string, string> = {
   money: "Money",
   "personal-data": "Personal information",
@@ -159,13 +180,9 @@ export function CheckMessage() {
       </form>
 
       {result && (
-        <div className={`result result--${VERDICT_META[result.verdict].tone}`}>
+        <div className={`result result--${toneFor(result)}`}>
           <div className="result__verdict">
-            <span className="result__badge">
-              {result.issue
-                ? ISSUE_LABEL[result.issue]
-                : VERDICT_META[result.verdict].label}
-            </span>
+            <span className="result__badge">{labelFor(result)}</span>
             <p className="result__summary">{result.summary}</p>
           </div>
 

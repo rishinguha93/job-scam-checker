@@ -32,7 +32,7 @@ const VERDICT_SUMMARY: Record<Verdict, string> = {
     "Some warning signs are present. Verify the recruiter and the role before " +
     "sharing anything or taking next steps.",
   "no-strong-signal":
-    "No strong red flags were detected in this text. That is not proof it is " +
+    "No known scam patterns matched this text. That is not proof it is " +
     "genuine — still verify the employer independently before proceeding.",
   "not-checkable":
     "We couldn't read this as a message, so nothing was checked.",
@@ -94,6 +94,29 @@ const SEVERITY_RANK: Record<Severity, number> = {
   low: 3,
 };
 
+/**
+ * Verdict-level wording. The "no strong signal" band can still carry findings
+ * that individually sit under the caution threshold, and it must not then claim
+ * nothing was found — that reads as an all-clear for something we did flag.
+ */
+function summaryFor(verdict: Verdict, findings: Finding[]): string {
+  if (verdict === "no-strong-signal" && findings.length > 0) {
+    if (findings.length === 1) {
+      return (
+        "Nothing here is decisive on its own, but the point below is worth " +
+        "resolving before you reply, alongside anything else you know about " +
+        "the sender."
+      );
+    }
+    return (
+      `Nothing here is decisive on its own, but the ${findings.length} points ` +
+      "below are worth resolving before you reply. Weigh them together with " +
+      "anything else you know about the sender."
+    );
+  }
+  return VERDICT_SUMMARY[verdict];
+}
+
 function notCheckable(issue: InputIssue): AnalysisResult {
   return {
     verdict: "not-checkable",
@@ -130,6 +153,6 @@ export function analyze(raw: CheckInput): AnalysisResult {
     verdict,
     score,
     findings,
-    summary: VERDICT_SUMMARY[verdict],
+    summary: summaryFor(verdict, findings),
   };
 }

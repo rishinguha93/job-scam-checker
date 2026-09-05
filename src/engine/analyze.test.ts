@@ -152,6 +152,32 @@ Good news — I know someone who can rewrite your CV properly. Go to Fiverr and 
     expect(result.verdict).toBe("very-likely-scam");
   });
 
+  it("does not claim nothing was found when a sub-threshold finding exists", () => {
+    // One medium finding scores 15, below the caution threshold of 20 — but the
+    // summary must not then read as an all-clear for something we did flag.
+    const text =
+      "Hi! Great to connect. Before our call I'd like to walk through the repo " +
+      "with you. You'll just need to pull our public repository to your machine, " +
+      "review the dependencies, and see how the modules fit together.";
+    const result = analyze({ text });
+
+    expect(result.verdict).toBe("no-strong-signal");
+    expect(result.findings.length).toBeGreaterThan(0);
+    expect(result.summary).not.toMatch(/no known scam patterns matched/i);
+    expect(result.summary).toMatch(/nothing here is decisive/i);
+  });
+
+  it("keeps the plain all-clear wording when there are genuinely no findings", () => {
+    const text =
+      "Hi Rishin, I'm a recruiter at Northwind Software. We have an opening for " +
+      "a backend engineer and thought you might be a fit. Would you be open to a " +
+      "video interview with our hiring panel next week?";
+    const result = analyze({ text });
+
+    expect(result.findings).toHaveLength(0);
+    expect(result.summary).toMatch(/no known scam patterns matched/i);
+  });
+
   it("every finding carries evidence and advice", () => {
     const result = analyze({
       text:
