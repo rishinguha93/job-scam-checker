@@ -18,7 +18,7 @@ describe("rule registry", () => {
   });
 
   it("exposes every rule as a function", () => {
-    expect(rules.length).toBeGreaterThanOrEqual(34);
+    expect(rules.length).toBeGreaterThanOrEqual(36);
     expect(rules.every((r) => typeof r === "function")).toBe(true);
   });
 });
@@ -180,6 +180,20 @@ describe("sender-identity rules", () => {
     ).toContain("offplatform-push");
   });
 
+  it("offplatform-push: directed at a third party, not just 'me'", () => {
+    expect(
+      firedIds({
+        text: "Please message our lead talent coordinator directly on WhatsApp.",
+      }),
+    ).toContain("offplatform-push");
+  });
+
+  it("offplatform-push: phone number written with hyphens", () => {
+    expect(
+      firedIds({ text: "You can reach the team on WhatsApp at +1-555-0199 today." }),
+    ).toContain("offplatform-push");
+  });
+
   it("does not flag a matching corporate domain", () => {
     const ids = firedIds({
       text: "From the recruiting team.",
@@ -272,6 +286,38 @@ describe("onboarding, interview format and illegal roles", () => {
     expect(
       firedIds({ text: "Complete the attached W-4 and your direct deposit form." }),
     ).toContain("onboarding-paperwork-early");
+  });
+
+  it("interview-bypass: moving forward without the screening call", () => {
+    expect(
+      firedIds({
+        text:
+          "The hiring manager wants to move forward immediately without a " +
+          "standard screening call.",
+      }),
+    ).toContain("interview-bypass");
+  });
+
+  it("interview-bypass: no interview required", () => {
+    expect(
+      firedIds({ text: "Good news — no interview is required for this role." }),
+    ).toContain("interview-bypass");
+  });
+
+  it("interview-bypass stays quiet when a real process is described", () => {
+    expect(
+      firedIds({
+        text:
+          "The process is a screening call with me, then a technical interview " +
+          "with the team, then a final conversation with the director.",
+      }),
+    ).not.toContain("interview-bypass");
+  });
+
+  it("confidential-role", () => {
+    expect(
+      firedIds({ text: "This is a confidential position with one of our clients." }),
+    ).toContain("confidential-role");
   });
 
   it("chat-only-interview: interview over Teams chat", () => {
@@ -418,6 +464,43 @@ describe("offer-content and process rules", () => {
           "I saw. You are exactly what we are looking for.",
       }),
     ).toContain("flattery-hook");
+  });
+
+  it('flattery-hook: "very impressed" plus "fits perfectly"', () => {
+    expect(
+      firedIds({
+        text:
+          "I am very impressed by your background, and this role fits your " +
+          "experience perfectly.",
+      }),
+    ).toContain("flattery-hook");
+  });
+
+  it('urgency-pressure: "time is critical" and review groups', () => {
+    expect(
+      firedIds({ text: "Time is critical for the first review group!" }),
+    ).toContain("urgency-pressure");
+  });
+
+  it('onboarding-paperwork-early: "onboarding questionnaire"', () => {
+    expect(
+      firedIds({ text: "Please fill out our onboarding questionnaire to continue." }),
+    ).toContain("onboarding-paperwork-early");
+  });
+
+  it('job-desc-attachment: "download the job specs"', () => {
+    expect(
+      firedIds({ text: "Click the link to download the job specs and review them." }),
+    ).toContain("job-desc-attachment");
+  });
+
+  it("vague-role is not satisfied by the sender's own job title", () => {
+    const text =
+      "Hi, I came across your profile and I am impressed by your background. " +
+      "We are recruiting for a high-level, confidential remote position with an " +
+      "incredible salary that suits you. The hiring manager wants to move ahead " +
+      "and our lead talent coordinator will be in touch with you very shortly.";
+    expect(firedIds({ text })).toContain("vague-role");
   });
 
   it("flattery-hook stays quiet on a single ordinary compliment", () => {

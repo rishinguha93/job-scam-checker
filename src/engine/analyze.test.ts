@@ -112,6 +112,28 @@ Good news — I know someone who can rewrite your CV properly. Go to Fiverr and 
     expect(result.verdict).toBe("very-likely-scam");
   });
 
+  it("flags the polished, no-obvious-money-ask lure", () => {
+    // Generated as a "realistic scam recruiter message". Crosses no money or
+    // PII red line, so it once scored 7 and returned "no strong signal".
+    const text =
+      "Hi , I came across your profile and I am very impressed by your " +
+      "background. We are currently recruiting for a high-level, confidential " +
+      "remote position with an incredible salary ($120k–$150k starting) that " +
+      "fits your experience perfectly. The hiring manager wants to move forward " +
+      "immediately without a standard screening call. Please message our lead " +
+      "talent coordinator directly on WhatsApp at +1-555-0199 or click [this " +
+      "secure link] to download the job specs and fill out our onboarding " +
+      "questionnaire. Time is critical for the first review group!";
+
+    const result = analyze({ text, channel: "linkedin" });
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toContain("offplatform-push");
+    expect(ids).toContain("interview-bypass");
+    expect(ids).toContain("onboarding-paperwork-early");
+    expect(ids).toContain("urgency-pressure");
+    expect(result.verdict).toBe("very-likely-scam");
+  });
+
   it("every finding carries evidence and advice", () => {
     const result = analyze({
       text:

@@ -240,8 +240,10 @@ const cvCriticismPressure: Rule = (input) => {
 const flatteryPatterns = [
   /\b(brilliant|outstanding|exceptional|remarkable|extraordinary|stellar|phenomenal)\b/i,
   /\b(rare (talent|find|combination)|one in a million|perfect (candidate|fit|match)|exactly what (we|our client)('| a)?(re| is)? (looking for|need))\b/i,
-  /\b(blown away|truly impressed|really impressed|so impressed|highly impressed)\b/i,
-  /\byour (profile|background|experience|career)\b[^.]{0,30}\b(stood out|caught my eye|really stands out)\b/i,
+  /\b(blown away|(truly|really|so|highly|very|extremely|hugely|genuinely) impressed)\b/i,
+  /\byour (profile|background|experience|career)\b[^.]{0,30}\b(stood out|caught my eye|really stands out|is impressive)\b/i,
+  /\b(fits?|matches?|suits?|aligns? with)\b[^.]{0,30}\byour (experience|background|profile|skills)\b[^.]{0,15}\bperfectly\b/i,
+  /\bperfectly (suited|matched|aligned)\b/i,
 ];
 
 const flatteryHook: Rule = (input) => {
@@ -365,8 +367,13 @@ const domainCompanyMismatch: Rule = (input) => {
 };
 
 const offPlatformPatterns = [
-  /\b(contact|message|reach|add|text|dm) (me|us|the hiring manager)\b[^.]{0,30}\b(on|via|through|at)\b[^.]{0,15}\b(whats ?app|telegram|signal|skype|wechat)\b/i,
-  /\b(whats ?app|telegram|signal|skype)\b[^.]{0,20}\b(number|handle|id|\+?\d{6,})\b/i,
+  // Any directive pointing at a chat app. The object is left open so
+  // "message our lead talent coordinator on WhatsApp" matches, not just
+  // "message me on WhatsApp".
+  /\b(contact|message|reach out to|reach|add|text|dm|write to|speak to|talk to|connect with)\b[^.]{0,55}\b(on|via|through|over|at)\b[^.]{0,15}\b(whats ?app|telegram|signal|skype|wechat)\b/i,
+  // A handle or number given for a chat app. Phone numbers are written with
+  // spaces, dots, brackets and hyphens, so a bare \d{6,} run misses most of them.
+  /\b(whats ?app|telegram|signal|skype)\b[^.]{0,25}(\bnumber\b|\bhandle\b|\bid\b|@[a-z0-9_]{3,}|\+?\d[\d\s().-]{5,15}\d)/i,
   /\bwe (only )?(interview|hire|onboard) (via|through|on)\b[^.]{0,15}\b(whats ?app|telegram|signal|skype)\b/i,
   // Handoff to SMS / an intermediary's chat thread.
   /\b(reply to|replied to|respond to|check|see|read) (my|the|your) (leader|manager|colleague|supervisor|boss)('?s)? (message|text)\b/i,
@@ -509,6 +516,9 @@ const urgencyPatterns = [
   /\b(today only|act now|don'?t miss (this|out)|immediate start required)\b/i,
   /\b(remember to|make sure to|be sure to|please) (reply|respond|get back to (me|us))\b[^.]{0,20}\b(in time|promptly|quickly|right away|asap)\b/i,
   /\b(reply|respond|get back to (me|us))\b[^.]{0,15}\b(in time|promptly)\b/i,
+  /\b(time is (critical|of the essence|short|running out|tight)|acting fast|we (must|need to) move (fast|quickly))\b/i,
+  /\b(first|initial|early) (review|selection|screening|interview) (group|round|batch|wave)\b/i,
+  /\b(limited time|closing soon|spots? (are )?going fast|before (it'?s|its) too late)\b/i,
 ];
 
 const urgencyPressure: Rule = (input) => {
@@ -643,13 +653,21 @@ const unsolicitedContact: Rule = (input) => {
 const ROLE_WORDS =
   /\b(engineer|developer|programmer|manager|designer|analyst|specialist|coordinator|assistant|representative|consultant|administrator|director|technician|nurse|accountant|clerk|agent|associate|architect|scientist|writer|editor|marketer|bookkeeper|paralegal|controller|strategist|officer)\b/i;
 
+/**
+ * Titles that belong to the *sender*, not to the job on offer. Without this,
+ * "the hiring manager wants to move forward" satisfies the role-word test and
+ * a message that never names the actual job looks specific.
+ */
+const SENDER_TITLES =
+  /\b(hiring|recruiting|recruitment|talent|hr|people|staffing)\s+(manager|coordinator|partner|specialist|consultant|director|lead|officer|associate|team)\b|\brecruiters?\b|\btalent acquisition\b/gi;
+
 const vagueRole: Rule = (input) => {
   const text = input.text;
   if (text.length < 200) return null; // too short to judge
   const talksAboutAJob =
     /\b(position|role|opportunity|vacancy|opening|job)\b/i.test(text);
   if (!talksAboutAJob) return null;
-  if (ROLE_WORDS.test(text)) return null;
+  if (ROLE_WORDS.test(text.replace(SENDER_TITLES, " "))) return null;
   return {
     id: "vague-role",
     category: "offer-content",
@@ -746,9 +764,11 @@ const unnamedLeaderHandoff: Rule = (input) => {
 };
 
 const attachmentJdPatterns = [
-  /\b(here is|here'?s|attached is|attached please find|find attached|see attached|please find|i have attached) [^.]{0,45}\bjob description\b/i,
-  /\bjob description[^.]{0,45}\.(docx?|pdf|rtf)\b/i,
+  /\b(here is|here'?s|attached is|attached please find|find attached|see attached|please find|i have attached) [^.]{0,45}\b(job description|job spec|role spec)/i,
+  /\b(job description|job spec|role spec)[a-z]{0,2}[^.]{0,45}\.(docx?|pdf|rtf)\b/i,
   /\.(docx?|pdf|rtf)\s*\d{1,4}\s*(kb|mb)\s*download\b/i,
+  // "click this link to download the job specs"
+  /\b(download|open|access|get)\b[^.]{0,35}\b(job|role|position) (description|spec|specs|specification|details|pack)\b/i,
 ];
 
 const jobDescAttachment: Rule = (input) => {
@@ -945,8 +965,8 @@ const runCodeRequest: Rule = (input) => {
 const onboardingPaperworkPatterns = [
   /\b(w-?4|w-?9|i-?9|1099|p45|p60|t4)\b(?!\w)/i,
   /\b(direct deposit|payroll (form|details|setup|information)|tax (form|details|information|documents))\b/i,
-  /\b(onboarding|new[- ]hire|employee) (portal|form|paperwork|packet|documents|package)\b/i,
-  /\b(complete|fill (out|in)|submit)\b[^.]{0,40}\b(onboarding|new[- ]hire|employment) (forms?|paperwork|documents)\b/i,
+  /\b(onboarding|new[- ]hire|employee) (portal|forms?|paperwork|packet|documents?|package|questionnaire|survey|checklist)\b/i,
+  /\b(complete|fill (out|in)|submit)\b[^.]{0,40}\b(onboarding|new[- ]hire|employment) (forms?|paperwork|documents?|questionnaire)\b/i,
 ];
 
 const onboardingPaperworkEarly: Rule = (input) => {
@@ -971,6 +991,57 @@ const onboardingPaperworkEarly: Rule = (input) => {
 /* -------------------------------------------------------------------------- */
 /* Interview format                                                           */
 /* -------------------------------------------------------------------------- */
+
+const interviewBypassPatterns = [
+  /\b(without|skip(ping)?|no need for|bypass(ing)?|forgo(ing)?|waiv(e|ing)|avoid)\b[^.]{0,45}\b(standard |usual |formal |initial |normal |typical |regular )?(screening|interview|vetting|hiring process|application process|selection process)\b/i,
+  /\bno (interview|screening|vetting|application|cv|resume) (is )?(needed|required|necessary)\b/i,
+  /\b(move forward|proceed|start|onboard|hire you)\b[^.]{0,35}\b(immediately|right away|straight away|at once|today)\b[^.]{0,45}\b(without|no|skipping)\b[^.]{0,25}\b(interview|screening|call|process)\b/i,
+  /\b(fast[- ]track(ed|ing)?|expedite[d]?|straight to (the )?(offer|onboarding|final))\b[^.]{0,40}\b(you|your (application|candidacy))\b/i,
+];
+
+const interviewBypass: Rule = (input) => {
+  const ev = evidenceFor(input.text, interviewBypassPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "interview-bypass",
+    category: "process",
+    severity: "high",
+    title: "Says the normal interview or screening will be skipped",
+    detail:
+      "Employers screen candidates because hiring is expensive to get wrong. " +
+      "A message that openly waives the interview is not saving you time — it " +
+      "is avoiding the step where you would meet someone real and check them.",
+    evidence: ev,
+    advice:
+      "Treat a skipped interview as the warning, not the perk. Ask to speak " +
+      "with the named hiring manager on video before anything else.",
+  };
+};
+
+const confidentialRolePatterns = [
+  /\b(confidential|classified|undisclosed|discreet|off[- ]market|hush[- ]hush)\b[^.]{0,30}\b(position|role|opportunity|opening|vacancy|search|project|assignment)\b/i,
+  /\b(cannot|can'?t|unable to|not able to) (disclose|name|share|reveal)\b[^.]{0,30}\b(the )?(company|employer|client|organisation|organization)\b/i,
+  /\b(keep this|this must (stay|remain)|please keep it) (confidential|private|between us|discreet)\b/i,
+];
+
+const confidentialRole: Rule = (input) => {
+  const ev = evidenceFor(input.text, confidentialRolePatterns);
+  if (!ev.length) return null;
+  return {
+    id: "confidential-role",
+    category: "offer-content",
+    severity: "low",
+    title: "Withholds the employer as “confidential”",
+    detail:
+      "Genuine confidential searches exist, but the recruiter still names " +
+      "their own agency and can be verified. Secrecy that covers everything — " +
+      "including who you would work for — mainly prevents you from checking.",
+    evidence: ev,
+    advice:
+      "Ask which agency they work for and verify that. A real recruiter will " +
+      "tell you, even when the client stays unnamed.",
+  };
+};
 
 const chatOnlyInterviewPatterns = [
   /\b(interview|screening|assessment)\b[^.]{0,45}\b(over|via|on|through|by)\b[^.]{0,25}\b(teams chat|microsoft teams chat|google chat|skype chat|text chat|chat only|instant messag\w+|messenger)\b/i,
@@ -1053,6 +1124,7 @@ export const rules: Rule[] = [
   shortenedLink,
   offPlatformPush,
   chatOnlyInterview,
+  interviewBypass,
   installSoftwareRequest,
   runCodeRequest,
   unnamedLeaderHandoff,
@@ -1064,6 +1136,7 @@ export const rules: Rule[] = [
   hiredNoInterview,
   urgencyPressure,
   unsolicitedContact,
+  confidentialRole,
   vagueRole,
   jobDescAttachment,
   genericGreeting,

@@ -4,7 +4,7 @@ The catalog the detection engine implements. Each rule is a pure function in
 `src/engine/rules.ts` that inspects a normalized input and, on a match, returns a
 `Finding`. Keep this document and that file in sync.
 
-**Status:** all 34 rules below are implemented, each with a positive test (and,
+**Status:** all 36 rules below are implemented, each with a positive test (and,
 where it matters, a negative test) in `src/engine/rules.test.ts`.
 
 Link handling lives in `src/engine/urls.ts` (extraction + host classification,
@@ -114,7 +114,8 @@ the UI must say so.
 | `urgency-pressure` | medium | "limited slots", "respond within", "act now", "today only", "positions filling fast", "remember to reply in time" |
 | `unsolicited-contact` | low | "found/seen/viewed/noticed your profile", "came across your resume", "your profile matched", "we got your contact from" + no application referenced |
 | `generic-greeting` | low | "dear candidate", "dear applicant", "hello dear", "dear sir/madam" |
-| `vague-role` | low | no concrete job title, team, or product named anywhere in the text |
+| `vague-role` | low | no concrete job title, team, or product named anywhere in the text. Sender-side titles ("the hiring manager", "our talent coordinator", "recruiter") are stripped before the check — otherwise the *interviewer's* job title makes an unnamed role look specific. |
+| `confidential-role` | low | "confidential/undisclosed position", "cannot disclose the client", "keep this between us". Genuine confidential searches exist, so this contributes rather than decides — a real recruiter still names their own agency. |
 | `grammar-artifacts` | low | multiple sentence-start lowercase, double spaces, ALL-CAPS runs, "kindly" + "revert back" |
 | `flattery-hook` | low | **two or more** of: "brilliant/outstanding/exceptional", "rare talent / perfect candidate / exactly what we need", "truly impressed", "your profile stood out". One compliment is normal recruiter language; a stack of them is rapport-building before an ask. |
 
@@ -127,6 +128,7 @@ the UI must say so.
 | `job-desc-attachment` | low | "here is your job description …", "job description … .docx/.pdf", ".docx NN KB Download" — JD delivered as a downloadable file |
 | `cv-criticism-pressure` | medium | "your CV is weak / needs rewriting", "won't get past the ATS", "ATS-friendly", "before I can submit … your CV" — the manufactured problem that sets up a paid rewrite |
 | `chat-only-interview` | high | "interview over Teams chat / instant messaging", "text-based interview", "no video required", "keep your camera off" — you never see or hear a person |
+| `interview-bypass` | high | "move forward without a standard screening call", "no interview required", "skip the vetting", "fast-tracked straight to offer" — the step where you would meet a verifiable human is openly waived |
 | `install-software-request` | high | "download/install our app\|client\|platform\|interview software", or a link to `.exe/.msi/.dmg/.apk/.scr/.bat/.pkg/.jar`. **Suppressed** when every hit names a platform in `TRUSTED_PLATFORMS` (Zoom, Teams, Meet, Webex, Skype, Slack, Whereby). |
 | `run-code-request` | medium | `git clone`, `npm install`, "clone the repo", "run the project locally", "review the codebase before the interview". **Medium on purpose** — genuine take-home tasks look identical, so this contributes rather than decides. Advice tells the user to run it only in a throwaway VM. |
 
