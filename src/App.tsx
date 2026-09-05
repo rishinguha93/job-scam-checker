@@ -28,9 +28,47 @@ export function App() {
   return (
     <div className="app">
       <header className="app__header">
-        <a className="app__brand" href="#/check">
-          Job Scam Checker
-        </a>
+        <div className="app__brandbar">
+          <a className="app__brand" href="#/check">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 2.5 4.5 5.6v5.5c0 4.6 3.2 8.9 7.5 10.4 4.3-1.5 7.5-5.8 7.5-10.4V5.6L12 2.5Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <path
+                d="m8.9 11.8 2.1 2.1 4.1-4.1"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Job Scam Checker
+          </a>
+          <span className="app__privacy">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect
+                x="4"
+                y="10.5"
+                width="16"
+                height="10"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <path
+                d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+            Runs in your browser — nothing is uploaded
+          </span>
+        </div>
+
         <nav className="app__nav">
           {(Object.keys(ROUTES) as Route[]).map((key) => (
             <a
@@ -39,6 +77,7 @@ export function App() {
               className={
                 "app__nav-link" + (route === key ? " app__nav-link--active" : "")
               }
+              aria-current={route === key ? "page" : undefined}
             >
               {ROUTES[key].nav}
             </a>

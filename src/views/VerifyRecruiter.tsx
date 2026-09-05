@@ -131,37 +131,39 @@ export function VerifyRecruiter() {
                 : "result--ok")
           }
         >
-          {failedWeighted.length > 0 ? (
-            <>
-              <span className="result__badge">Stop and do not proceed</span>
-              <p className="result__summary">
-                You answered “no” to {failedWeighted.length} critical check
-                {failedWeighted.length > 1 ? "s" : ""}:
-              </p>
-              <ul>
-                {failedWeighted.map((i) => (
-                  <li key={i.id}>{i.prompt}</li>
-                ))}
-              </ul>
-            </>
-          ) : allYes ? (
-            <>
-              <span className="result__badge">Checks passed</span>
-              <p className="result__summary">
-                Every check passed. That is a good sign — but stay alert if the
-                situation changes, especially any later request for money or
-                personal data.
-              </p>
-            </>
-          ) : (
-            <>
-              <span className="result__badge">Keep verifying</span>
-              <p className="result__summary">
-                Don’t proceed while anything is unanswered or “not sure”. Resolve
-                each item before sharing information or doing tasks.
-              </p>
-            </>
-          )}
+          <div className="result__verdict">
+            {failedWeighted.length > 0 ? (
+              <>
+                <span className="result__badge">Stop and do not proceed</span>
+                <p className="result__summary">
+                  You answered “no” to {failedWeighted.length} critical check
+                  {failedWeighted.length > 1 ? "s" : ""}:
+                </p>
+                <ul className="result__list">
+                  {failedWeighted.map((i) => (
+                    <li key={i.id}>{i.prompt}</li>
+                  ))}
+                </ul>
+              </>
+            ) : allYes ? (
+              <>
+                <span className="result__badge">Checks passed</span>
+                <p className="result__summary">
+                  Every check passed. That is a good sign — but stay alert if the
+                  situation changes, especially any later request for money or
+                  personal data.
+                </p>
+              </>
+            ) : (
+              <>
+                <span className="result__badge">Keep verifying</span>
+                <p className="result__summary">
+                  Don’t proceed while anything is unanswered or “not sure”.
+                  Resolve each item before sharing information or doing tasks.
+                </p>
+              </>
+            )}
+          </div>
         </div>
       )}
     </section>

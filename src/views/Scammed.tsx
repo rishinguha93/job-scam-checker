@@ -82,7 +82,7 @@ export function Scammed() {
         </ol>
       )}
 
-      <p className="result__disclaimer">
+      <p className="note">
         Reporting links are US agencies. If you're elsewhere, report to your
         national consumer-protection or cybercrime agency and your bank.
       </p>
