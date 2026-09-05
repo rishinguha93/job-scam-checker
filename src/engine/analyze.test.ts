@@ -134,6 +134,24 @@ Good news — I know someone who can rewrite your CV properly. Go to Fiverr and 
     expect(result.verdict).toBe("very-likely-scam");
   });
 
+  it("flags a short lure that leads with money and skips the interview", () => {
+    const text =
+      "Hello! I saw your profile and I am very impressed with your background. " +
+      "I am a senior recruiter for a major global tech firm. We have an urgent " +
+      "remote opening for a [Your Field] position. The pay is $95/hour with " +
+      "flexible hours. No formal interview is needed with the hiring manager. " +
+      "Please add our hiring coordinator on WhatsApp at +1-555-0199 immediately " +
+      "to claim your spot in our first review group. Thanks";
+
+    const result = analyze({ text, channel: "linkedin" });
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toContain("offplatform-push");
+    expect(ids).toContain("interview-bypass");
+    expect(ids).toContain("unrealistic-pay");
+    expect(ids).toContain("vague-role");
+    expect(result.verdict).toBe("very-likely-scam");
+  });
+
   it("every finding carries evidence and advice", () => {
     const result = analyze({
       text:

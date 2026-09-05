@@ -467,18 +467,34 @@ function findUnrealisticPay(text: string): string[] {
 const unrealisticPay: Rule = (input) => {
   const evidence = findUnrealisticPay(input.text);
   if (!evidence.length) return null;
-  if (!simpleWorkNearby.test(input.text)) return null;
+
+  // A high rate is only a red flag in context. Two contexts qualify: the work
+  // is described as simple/low-skill, or no actual job is named at all —
+  // "$95/hour for a [Your Field] position" is a lure precisely because the
+  // money is attached to nothing.
+  const simpleWork = simpleWorkNearby.test(input.text);
+  const roleNamed = ROLE_WORDS.test(input.text.replace(SENDER_TITLES, " "));
+  if (!simpleWork && roleNamed) return null;
+
   return {
     id: "unrealistic-pay",
     category: "offer-content",
     severity: "high",
-    title: "Pay is far above market for the work described",
-    detail:
-      "Offers of several hundred dollars a day (or tens of dollars an hour) for " +
-      "simple, low-skill tasks are a lure. The pay does not correspond to any " +
-      "real job.",
+    title: simpleWork
+      ? "Pay is far above market for the work described"
+      : "A high rate attached to no actual job",
+    detail: simpleWork
+      ? "Offers of several hundred dollars a day (or tens of dollars an hour) " +
+        "for simple, low-skill tasks are a lure. The pay does not correspond " +
+        "to any real job."
+      : "The rate is well above market, yet the message never says what the " +
+        "job actually is. Leading with money instead of the role is how these " +
+        "approaches get a reply.",
     evidence,
-    advice: "Compare the rate to real listings for the same work. Be skeptical.",
+    advice: simpleWork
+      ? "Compare the rate to real listings for the same work. Be skeptical."
+      : "Ask for the exact job title and duties in writing before anything " +
+        "else, then compare the rate to real listings for that role.",
   };
 };
 
@@ -994,7 +1010,10 @@ const onboardingPaperworkEarly: Rule = (input) => {
 
 const interviewBypassPatterns = [
   /\b(without|skip(ping)?|no need for|bypass(ing)?|forgo(ing)?|waiv(e|ing)|avoid)\b[^.]{0,45}\b(standard |usual |formal |initial |normal |typical |regular )?(screening|interview|vetting|hiring process|application process|selection process)\b/i,
-  /\bno (interview|screening|vetting|application|cv|resume) (is )?(needed|required|necessary)\b/i,
+  // Allows an adjective or two in between: "no formal interview is needed".
+  // The \w+ runs stop at punctuation, so "no cost, and an interview is
+  // required" does not match.
+  /\bno (?:\w+ ){0,2}(interview|screening|vetting|phone screen|application|cv|resume)\b[^.]{0,14}\b(needed|required|necessary|involved)\b/i,
   /\b(move forward|proceed|start|onboard|hire you)\b[^.]{0,35}\b(immediately|right away|straight away|at once|today)\b[^.]{0,45}\b(without|no|skipping)\b[^.]{0,25}\b(interview|screening|call|process)\b/i,
   /\b(fast[- ]track(ed|ing)?|expedite[d]?|straight to (the )?(offer|onboarding|final))\b[^.]{0,40}\b(you|your (application|candidacy))\b/i,
 ];

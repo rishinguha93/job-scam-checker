@@ -304,6 +304,24 @@ describe("onboarding, interview format and illegal roles", () => {
     ).toContain("interview-bypass");
   });
 
+  it('interview-bypass: "no formal interview is needed"', () => {
+    expect(
+      firedIds({
+        text: "No formal interview is needed with the hiring manager for this role.",
+      }),
+    ).toContain("interview-bypass");
+  });
+
+  it("interview-bypass is not tripped by an unrelated 'no'", () => {
+    expect(
+      firedIds({
+        text:
+          "There is no cost to you, and an interview with the team is required " +
+          "before any offer is made.",
+      }),
+    ).not.toContain("interview-bypass");
+  });
+
   it("interview-bypass stays quiet when a real process is described", () => {
     expect(
       firedIds({
@@ -360,6 +378,27 @@ describe("offer-content and process rules", () => {
     expect(
       firedIds({ text: "Earn $60/hr doing simple, easy data entry tasks." }),
     ).toContain("unrealistic-pay");
+  });
+
+  it("unrealistic-pay: a high rate attached to no named role", () => {
+    expect(
+      firedIds({
+        text:
+          "We have an urgent remote opening for a [Your Field] position. The pay " +
+          "is $95/hour with flexible hours.",
+      }),
+    ).toContain("unrealistic-pay");
+  });
+
+  it("unrealistic-pay stays quiet on a high rate for a named senior role", () => {
+    // $95/hr is ordinary contractor pay when the job actually exists.
+    expect(
+      firedIds({
+        text:
+          "We're hiring a senior backend engineer on a 6-month contract at " +
+          "$95/hour. The team works on payments infrastructure.",
+      }),
+    ).not.toContain("unrealistic-pay");
   });
 
   it("unrealistic-pay stays quiet on an ordinary rate ($18/hr research study)", () => {
