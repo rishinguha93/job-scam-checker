@@ -2,11 +2,13 @@
  * Orchestrator: normalize the input, run the rules, aggregate a verdict.
  */
 
+import { assessInput } from "./relevance";
 import { runRules } from "./rules";
 import type {
   AnalysisResult,
   CheckInput,
   Finding,
+  InputIssue,
   Severity,
   Verdict,
 } from "./types";
@@ -32,6 +34,23 @@ const VERDICT_SUMMARY: Record<Verdict, string> = {
   "no-strong-signal":
     "No strong red flags were detected in this text. That is not proof it is " +
     "genuine — still verify the employer independently before proceeding.",
+  "not-checkable":
+    "We couldn't read this as a message, so nothing was checked.",
+};
+
+const ISSUE_SUMMARY: Record<InputIssue, string> = {
+  gibberish:
+    "This doesn't read as a written message, so no check was run — treat it " +
+    "as no result at all, not as a clean one. Paste the recruiter's email, " +
+    "LinkedIn message, or text exactly as you received it.",
+  "non-english":
+    "The rules only cover English at the moment, so this wasn't checked. " +
+    "An English translation of the message will work, or use the " +
+    "“Verify a recruiter” checklist instead — it isn't language-specific.",
+  "off-topic":
+    "This reads as ordinary text with nothing about a job, a role, or hiring " +
+    "in it, and no scam patterns matched. If you meant to paste a recruiter " +
+    "message, it may not have copied across.",
 };
 
 /** Trim, and drop obviously empty optional fields. */
@@ -75,11 +94,36 @@ const SEVERITY_RANK: Record<Severity, number> = {
   low: 3,
 };
 
+function notCheckable(issue: InputIssue): AnalysisResult {
+  return {
+    verdict: "not-checkable",
+    score: 0,
+    findings: [],
+    summary: ISSUE_SUMMARY[issue],
+    issue,
+  };
+}
+
 export function analyze(raw: CheckInput): AnalysisResult {
   const input = normalizeInput(raw);
+
+  // Unreadable input can't produce a meaningful verdict either way, so stop
+  // before the rules rather than reporting a reassuring empty result.
+  const issue = assessInput(input.text);
+  if (issue === "gibberish" || issue === "non-english") {
+    return notCheckable(issue);
+  }
+
   const findings = runRules(input).sort(
     (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
   );
+
+  // "Off-topic" is only worth reporting when nothing matched anyway. A message
+  // that trips real rules gets a real verdict, whatever it appears to be about.
+  if (issue === "off-topic" && findings.length === 0) {
+    return notCheckable(issue);
+  }
+
   const score = scoreOf(findings);
   const verdict = verdictFor(findings, score);
   return {

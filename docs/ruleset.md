@@ -28,6 +28,22 @@ The engine normalizes user input into:
 | `medium` | 15 | Meaningful in combination. |
 | `low` | 7 | Weak; contributes only in aggregate. |
 
+## Input relevance gate
+
+Before any rule runs, `src/engine/relevance.ts` checks that the input is
+actually a readable message. Without this, junk input falls through every rule
+and reports "No strong signal found" — which reads as reassurance for something
+that was never assessed.
+
+| Issue | Detected by | Result |
+|---|---|---|
+| `gibberish` | 6+ repeated characters; <50% of alphabetic tokens look word-like (vowel present, no 5+ consonant run, ≤24 chars); or ≥8 tokens with zero English function words | Short-circuits before the rules |
+| `non-english` | ≥20 letters and <40% of them Latin script | Short-circuits before the rules |
+| `off-topic` | ≥25 tokens and no work/hiring vocabulary anywhere | **Only** applied when the rules also found nothing — a message that trips a real rule always gets a real verdict |
+
+All three produce the `not-checkable` verdict with an `issue` field, rendered in
+neutral grey: deliberately not the green "no strong signal" state.
+
 ## Verdict bands
 
 1. Any `critical` finding → **Very likely a scam**

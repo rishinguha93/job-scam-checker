@@ -227,6 +227,11 @@ a {
   background: var(--danger-bg);
   border-left-color: var(--danger-border);
 }
+/* No risk judgement was made — deliberately not green, not red. */
+.result--neutral {
+  background: var(--surface-muted, #f1f3f5);
+  border-left-color: var(--muted, #868e96);
+}
 
 .result__badge {
   display: inline-block;

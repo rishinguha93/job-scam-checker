@@ -1,12 +1,24 @@
 import { useMemo, useState } from "react";
 import { analyze } from "../engine/analyze";
-import type { AnalysisResult, Channel, Verdict } from "../engine/types";
+import type {
+  AnalysisResult,
+  Channel,
+  InputIssue,
+  Verdict,
+} from "../engine/types";
 
 const VERDICT_META: Record<Verdict, { label: string; tone: string }> = {
   "very-likely-scam": { label: "Very likely a scam", tone: "danger" },
   "high-risk": { label: "High risk", tone: "danger" },
   caution: { label: "Caution — verify first", tone: "warn" },
   "no-strong-signal": { label: "No strong signal found", tone: "ok" },
+  "not-checkable": { label: "Nothing to check", tone: "neutral" },
+};
+
+const ISSUE_LABEL: Record<InputIssue, string> = {
+  gibberish: "That doesn't look like a message",
+  "non-english": "Can't check this language yet",
+  "off-topic": "That doesn't look like a recruiting message",
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -150,12 +162,15 @@ export function CheckMessage() {
         <div className={`result result--${VERDICT_META[result.verdict].tone}`}>
           <div className="result__verdict">
             <span className="result__badge">
-              {VERDICT_META[result.verdict].label}
+              {result.issue
+                ? ISSUE_LABEL[result.issue]
+                : VERDICT_META[result.verdict].label}
             </span>
             <p className="result__summary">{result.summary}</p>
           </div>
 
-          {result.findings.length > 0 ? (
+          {result.verdict === "not-checkable" ? null : result.findings.length >
+            0 ? (
             <div className="findings">
               <h2 className="findings__title">
                 What we found ({result.findings.length})
@@ -196,10 +211,12 @@ export function CheckMessage() {
             </p>
           )}
 
-          <p className="result__disclaimer">
-            This is an automated heuristic check, not a verdict from a person.
-            Scammers change tactics; a clean result is not a guarantee.
-          </p>
+          {result.verdict !== "not-checkable" && (
+            <p className="result__disclaimer">
+              This is an automated heuristic check, not a verdict from a person.
+              Scammers change tactics; a clean result is not a guarantee.
+            </p>
+          )}
         </div>
       )}
     </section>

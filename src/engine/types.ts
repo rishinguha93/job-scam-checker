@@ -51,7 +51,18 @@ export type Verdict =
   | "very-likely-scam"
   | "high-risk"
   | "caution"
-  | "no-strong-signal";
+  | "no-strong-signal"
+  /** The input wasn't a readable recruiting message; no risk judgement made. */
+  | "not-checkable";
+
+/** Why an input could not be assessed. Set only for the "not-checkable" verdict. */
+export type InputIssue =
+  /** Keysmash, repeated filler, or otherwise not natural language. */
+  | "gibberish"
+  /** Readable, but not in a language the rules cover. */
+  | "non-english"
+  /** Readable English, but nothing to do with a job or hiring. */
+  | "off-topic";
 
 export interface AnalysisResult {
   verdict: Verdict;
@@ -60,6 +71,8 @@ export interface AnalysisResult {
   findings: Finding[];
   /** Verdict-level guidance shown at the top of the result. */
   summary: string;
+  /** Present only when `verdict` is "not-checkable". */
+  issue?: InputIssue;
 }
 
 /** A rule inspects the input and returns a Finding when it matches. */
