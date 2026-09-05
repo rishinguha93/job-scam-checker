@@ -7,6 +7,14 @@
  */
 
 import type { CheckInput, Finding, Rule } from "./types";
+import {
+  extractUrls,
+  isFormHost,
+  isIpHost,
+  isKnownGoodHost,
+  isShortenerHost,
+  lookalikeReasons,
+} from "./urls";
 
 /* -------------------------------------------------------------------------- */
 /* Matching helpers                                                            */
@@ -77,8 +85,14 @@ function evidenceFor(text: string, patterns: RegExp[]): string[] {
 
 const payToStartPatterns = [
   /\bpay(?:ment)?\b[^.]{0,40}\b(equipment|training|certification|certificate|background check|starter kit|onboarding fee|registration fee|processing fee|activation fee)\b/i,
-  /\b(you(?:'| a)?ll? need to|please|kindly)\b[^.]{0,30}\b(pay|purchase|buy|cover|send)\b[^.]{0,30}\b(fee|equipment|kit|software|license)\b/i,
+  // "you need to" / "you'll need to" / "you will need to" / "you must" / please / kindly.
+  /\b(you(?:'ll| will)? (?:need|have) to|you must|you are required to|please|kindly)\b[^.]{0,30}\b(pay|purchase|buy|cover|send|order)\b[^.]{0,30}\b(fee|equipment|kit|software|license|laptop|computer|hardware)\b/i,
   /\brefundable (deposit|fee)\b/i,
+  // "Buy it from our supplier and we'll reimburse you" — the promise of
+  // repayment is what makes this feel safe. The cheque bounces later.
+  /\b(purchase|buy|pay for|order)\b[^.]{0,60}\b(equipment|laptop|computer|hardware|software|supplies|kit)\b[^.]{0,80}\b(reimburse|refund(ed)?|pay you back|deducted from your)\b/i,
+  /\b(reimburse|refund|pay you back)\b[^.]{0,60}\b(after|once|when) you\b[^.]{0,40}\b(purchase|buy|pay for|order)\b/i,
+  /\b(our|the|an?) (approved|preferred|designated|official) (vendor|supplier|retailer|store)\b/i,
 ];
 
 const payToStart: Rule = (input) => {
@@ -533,68 +547,11 @@ const genericGreeting: Rule = (input) => {
   };
 };
 
-/** TLDs disproportionately used for throwaway impersonation domains. */
-const SUSPICIOUS_TLDS = new Set([
-  "online",
-  "info",
-  "site",
-  "xyz",
-  "top",
-  "click",
-  "buzz",
-  "work",
-  "shop",
-  "icu",
-  "cyou",
-  "sbs",
-]);
-
-/** Well-known employer/brand tokens people try to impersonate. */
-const BRAND_TOKENS = [
-  "google",
-  "microsoft",
-  "apple",
-  "amazon",
-  "meta",
-  "linkedin",
-  "netflix",
-  "oracle",
-  "deloitte",
-  "accenture",
-  "pwc",
-  "kpmg",
-  "cisco",
-  "adobe",
-  "salesforce",
-];
-
 const lookalikeDomain: Rule = (input) => {
   const domain = emailDomain(input.fromEmail);
   if (!domain || FREEMAIL_DOMAINS.has(domain)) return null;
 
-  const parts = domain.split(".");
-  const tld = parts[parts.length - 1];
-  const core = parts.slice(0, -1).join(".");
-  const reasons: string[] = [];
-
-  if (/[-.](careers?|hr|jobs?|recruit(ing|ment)?|talent|hiring|apply)$/.test(core) ||
-      /^(careers?|hr|jobs?|recruit(ing|ment)?|talent|hiring|apply)[-.]/.test(core)) {
-    reasons.push('bolt-on word like "-careers" or "hr-"');
-  }
-  if (SUSPICIOUS_TLDS.has(tld)) {
-    reasons.push(`unusual .${tld} domain ending`);
-  }
-  for (const brand of BRAND_TOKENS) {
-    if (core.includes(brand) && core !== brand && !core.endsWith(`.${brand}`)) {
-      reasons.push(`contains "${brand}" but is not that company's real domain`);
-      break;
-    }
-  }
-  if (/\d/.test(core.replace(/\d{4,}/g, "")) && /[a-z]/.test(core)) {
-    // digits mixed into an otherwise alphabetic name (e.g. g00gle, amaz0n)
-    if (/[a-z]\d|\d[a-z]/.test(core)) reasons.push("digits substituted for letters");
-  }
-
+  const reasons = lookalikeReasons(domain);
   if (!reasons.length) return null;
   return {
     id: "lookalike-domain",
@@ -813,6 +770,265 @@ const jobDescAttachment: Rule = (input) => {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Links                                                                      */
+/* -------------------------------------------------------------------------- */
+
+const shortenedLink: Rule = (input) => {
+  const hits = extractUrls(input.text).filter((u) => isShortenerHost(u.host));
+  if (!hits.length) return null;
+  return {
+    id: "shortened-link",
+    category: "sender-identity",
+    severity: "medium",
+    title: "Uses a shortened link that hides its real destination",
+    detail:
+      "You cannot see where a shortened link actually goes until you have " +
+      "already clicked it. Real employers link to their own site.",
+    evidence: hits.map((u) => u.raw),
+    advice:
+      "Don't click it. Ask for the full web address, or go to the company's " +
+      "site yourself and find the role there.",
+  };
+};
+
+const suspiciousLinkHost: Rule = (input) => {
+  const findingsFor: string[] = [];
+  const reasons = new Set<string>();
+
+  for (const url of extractUrls(input.text)) {
+    if (isKnownGoodHost(url.host)) continue;
+    if (isIpHost(url.host)) {
+      findingsFor.push(url.raw);
+      reasons.add("a bare numeric address instead of a company name");
+      continue;
+    }
+    const why = lookalikeReasons(url.host);
+    if (why.length) {
+      findingsFor.push(url.raw);
+      why.forEach((r) => reasons.add(r));
+    }
+  }
+
+  if (!findingsFor.length) return null;
+  return {
+    id: "suspicious-link-host",
+    category: "sender-identity",
+    severity: "high",
+    title: "Links to a web address built to look like a real company",
+    detail:
+      "The link uses " +
+      [...reasons].join("; ") +
+      ". Pages like this are built to collect your login or personal details.",
+    evidence: findingsFor,
+    advice:
+      "Do not open it or enter anything on it. Reach the company by typing " +
+      "its real address into your browser yourself.",
+  };
+};
+
+const formHostLink: Rule = (input) => {
+  const hits = extractUrls(input.text).filter((u) => isFormHost(u.host));
+  if (!hits.length) return null;
+  const sensitiveContext =
+    /\b(onboard(ing)?|new hire|payroll|direct deposit|bank|ssn|social security|tax|w-?4|i-?9|passport|id|identity|verify)\b/i.test(
+      input.text,
+    );
+  return {
+    id: "form-host-link",
+    category: "personal-data",
+    severity: sensitiveContext ? "high" : "medium",
+    title: "Collects your details through a generic online form",
+    detail:
+      "Real hiring and payroll run through the company's own system, not a " +
+      "Google Form or Typeform. Anyone can create one of these in minutes, and " +
+      "whatever you type goes straight to whoever made it.",
+    evidence: hits.map((u) => u.raw),
+    advice:
+      "Don't enter personal or financial details. Ask them to send it through " +
+      "the company's official careers or HR system.",
+  };
+};
+
+/* -------------------------------------------------------------------------- */
+/* Software and code                                                          */
+/* -------------------------------------------------------------------------- */
+
+const remoteAccessPatterns = [
+  /\b(install|download|set ?up|use|get|add)\b[^.]{0,45}\b(anydesk|teamviewer|ultraviewer|rustdesk|ammyy|logmein|splashtop|quick assist)\b/i,
+  /\b(anydesk|teamviewer|ultraviewer|rustdesk|ammyy|logmein|splashtop)\b[^.]{0,50}\b(so (i|we) can|to (give|grant|allow) (me|us)|remote(ly)? (access|control|connect|assist))\b/i,
+];
+
+const remoteAccessTool: Rule = (input) => {
+  const ev = evidenceFor(input.text, remoteAccessPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "remote-access-tool",
+    category: "process",
+    severity: "critical",
+    title: "Asks you to install remote-access software",
+    detail:
+      "Tools like AnyDesk and TeamViewer hand someone else control of your " +
+      "computer. No real employer needs this from a candidate. It is used to " +
+      "empty bank accounts and steal saved passwords.",
+    evidence: ev,
+    advice:
+      "Do not install it. If you already did, uninstall it, disconnect from " +
+      "the internet, and change your passwords from a different device.",
+  };
+};
+
+const installSoftwarePatterns = [
+  /\b(download|install)\b[^.]{0,45}\b(our|the|this|their)\b[^.]{0,30}\b(app|application|software|client|platform|tool|program|extension|plugin)\b/i,
+  /\b(download|install|open|run)\b[^.]{0,50}\.(exe|msi|dmg|apk|scr|bat|pkg|jar)\b/i,
+  /\b(install|download)\b[^.]{0,45}\b(video|conferenc\w+|meeting|interview|assessment) (app|software|client|platform|tool)\b/i,
+];
+
+/** Named platforms it is normal to be asked to use. */
+const TRUSTED_PLATFORMS =
+  /\b(zoom|microsoft teams|ms teams|google meet|webex|skype|slack|whereby)\b/i;
+
+const installSoftwareRequest: Rule = (input) => {
+  const ev = evidenceFor(input.text, installSoftwarePatterns);
+  if (!ev.length) return null;
+  // Being asked to install Zoom is not a red flag; being asked to install
+  // "our interview client" is. Only fire if at least one hit is not about a
+  // platform everybody already uses.
+  const unexplained = ev.filter((snippet) => !TRUSTED_PLATFORMS.test(snippet));
+  if (!unexplained.length) return null;
+  return {
+    id: "install-software-request",
+    category: "process",
+    severity: "high",
+    title: "Asks you to download or install something",
+    detail:
+      "Fake interviews are used to deliver malware disguised as an interview " +
+      "app or assessment tool. Installing it can expose your passwords, files, " +
+      "and accounts.",
+    evidence: unexplained,
+    advice:
+      "Interview on a platform you already trust — Zoom, Teams, or Google " +
+      "Meet. Never install software a stranger sends you.",
+  };
+};
+
+const runCodePatterns = [
+  /\b(git clone|npm install|npm i\b|yarn install|pnpm install|pip install|composer install|bundle install|docker run)\b/i,
+  /\b(clone|download|pull|fork)\b[^.]{0,30}\b(the |this |our |my )?(repo|repository|codebase|project|starter)\b/i,
+  /\b(run|execute|build|start)\b[^.]{0,30}\b(the |this |our )?(code|script|project|app|application|assessment|task)\b[^.]{0,35}\b(locally|on your (own )?(machine|computer|laptop|device))\b/i,
+  /\breview\b[^.]{0,30}\b(the |our |this )?(codebase|repository|repo)\b[^.]{0,45}\b(before|prior to|ahead of)\b[^.]{0,35}\b(interview|call|meeting)\b/i,
+];
+
+const runCodeRequest: Rule = (input) => {
+  const ev = evidenceFor(input.text, runCodePatterns);
+  if (!ev.length) return null;
+  return {
+    id: "run-code-request",
+    category: "process",
+    severity: "medium",
+    title: "Asks you to download and run code",
+    detail:
+      "Attackers pose as recruiters and send a “take-home project” or “codebase " +
+      "to review”. Installing its dependencies runs their code on your machine " +
+      "before you have read a single line of it. Genuine take-home tasks exist, " +
+      "so weigh this against everything else here.",
+    evidence: ev,
+    advice:
+      "Never run it on your main machine. Use a throwaway virtual machine or " +
+      "container — and only after you have spoken to a verified human.",
+  };
+};
+
+/* -------------------------------------------------------------------------- */
+/* Onboarding paperwork                                                       */
+/* -------------------------------------------------------------------------- */
+
+const onboardingPaperworkPatterns = [
+  /\b(w-?4|w-?9|i-?9|1099|p45|p60|t4)\b(?!\w)/i,
+  /\b(direct deposit|payroll (form|details|setup|information)|tax (form|details|information|documents))\b/i,
+  /\b(onboarding|new[- ]hire|employee) (portal|form|paperwork|packet|documents|package)\b/i,
+  /\b(complete|fill (out|in)|submit)\b[^.]{0,40}\b(onboarding|new[- ]hire|employment) (forms?|paperwork|documents)\b/i,
+];
+
+const onboardingPaperworkEarly: Rule = (input) => {
+  const ev = evidenceFor(input.text, onboardingPaperworkPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "onboarding-paperwork-early",
+    category: "personal-data",
+    severity: "high",
+    title: "Sends onboarding or payroll paperwork",
+    detail:
+      "A W-4, an I-9, or a direct-deposit form hands over everything needed to " +
+      "steal your identity or reroute your pay. This is normal after a signed " +
+      "offer from an employer you have verified — and a common scam before one.",
+    evidence: ev,
+    advice:
+      "Only complete these once you have a signed offer and have confirmed the " +
+      "company through contact details you looked up yourself.",
+  };
+};
+
+/* -------------------------------------------------------------------------- */
+/* Interview format                                                           */
+/* -------------------------------------------------------------------------- */
+
+const chatOnlyInterviewPatterns = [
+  /\b(interview|screening|assessment)\b[^.]{0,45}\b(over|via|on|through|by)\b[^.]{0,25}\b(teams chat|microsoft teams chat|google chat|skype chat|text chat|chat only|instant messag\w+|messenger)\b/i,
+  /\b(text|chat|written|typed)[- ]based (interview|screening|assessment)\b/i,
+  /\bno (video|camera|webcam|face[- ]to[- ]face|phone call)\b[^.]{0,35}\b(needed|required|necessary|involved)\b/i,
+  /\b(keep|turn|leave|switch)\b[^.]{0,20}\byour (camera|video|webcam)\b[^.]{0,15}\b(off|disabled)\b/i,
+  /\b(interview|meeting) will be (conducted |held |done )?(via|over|through|by) (chat|text|messaging|im)\b/i,
+];
+
+const chatOnlyInterview: Rule = (input) => {
+  const ev = evidenceFor(input.text, chatOnlyInterviewPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "chat-only-interview",
+    category: "process",
+    severity: "high",
+    title: "Interviews you by text, with no voice or video",
+    detail:
+      "A typed-only interview means you never see or hear a person. That is " +
+      "the point: there is no real interviewer, and often no real company.",
+    evidence: ev,
+    advice:
+      "Insist on a video call with someone whose name and face you can match " +
+      "to the company's own website.",
+  };
+};
+
+/* -------------------------------------------------------------------------- */
+/* Illegal-activity roles                                                     */
+/* -------------------------------------------------------------------------- */
+
+const reshippingPatterns = [
+  /\b(receive|accept|collect|take delivery of)\b[^.]{0,45}\b(packages?|parcels?|shipments?|deliveries|merchandise)\b[^.]{0,70}\b(at (your )?(home|house|address|residence)|then (re)?ship|and (re)?ship|forward|send (them |it )?on)\b/i,
+  /\b(re)?ship(ping)?\b[^.]{0,35}\b(packages?|parcels?|items?|goods|merchandise)\b[^.]{0,45}\b(overseas|abroad|internationally|out of (the )?country|to (our )?(clients?|partners?|warehouse))\b/i,
+  /\b(package|parcel|shipping|freight|merchandise|delivery) (inspector|inspection|processor|processing|coordinator|forwarder|handler|agent)\b/i,
+  /\bquality (control|assurance) (inspector|agent|specialist|officer)\b[^.]{0,70}\b(packages?|parcels?|shipments?|products? you receive)\b/i,
+];
+
+const reshippingRole: Rule = (input) => {
+  const ev = evidenceFor(input.text, reshippingPatterns);
+  if (!ev.length) return null;
+  return {
+    id: "reshipping-role",
+    category: "process",
+    severity: "critical",
+    title: "Asks you to receive and forward packages",
+    detail:
+      "This is a parcel-mule scheme. The goods are bought with stolen cards and " +
+      "sent to your address to break the trail. You would not be paid, and it " +
+      "is your name and address on the shipping records.",
+    evidence: ev,
+    advice:
+      "Do not accept or forward anything. This is a crime you would be caught " +
+      "up in — stop contact and report it.",
+  };
+};
+
+/* -------------------------------------------------------------------------- */
 /* Registry                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -823,13 +1039,22 @@ export const rules: Rule[] = [
   cryptoTopup,
   giftCards,
   cvServiceReferral,
+  remoteAccessTool,
+  reshippingRole,
   piiBeforeOffer,
   accountCredentials,
+  onboardingPaperworkEarly,
+  formHostLink,
   freemailSender,
   domainCompanyMismatch,
   lookalikeDomain,
   replyToMismatch,
+  suspiciousLinkHost,
+  shortenedLink,
   offPlatformPush,
+  chatOnlyInterview,
+  installSoftwareRequest,
+  runCodeRequest,
   unnamedLeaderHandoff,
   recruiterPhoneHarvest,
   cvCriticismPressure,

@@ -18,7 +18,7 @@ describe("rule registry", () => {
   });
 
   it("exposes every rule as a function", () => {
-    expect(rules.length).toBeGreaterThanOrEqual(25);
+    expect(rules.length).toBeGreaterThanOrEqual(34);
     expect(rules.every((r) => typeof r === "function")).toBe(true);
   });
 });
@@ -82,6 +82,24 @@ describe("money rules", () => {
           "Please send your CV if that sounds interesting.",
       }),
     ).not.toContain("cv-service-referral");
+  });
+
+  it('pay-to-start catches the spelled-out "you will need to"', () => {
+    expect(
+      firedIds({
+        text: "You will need to purchase your equipment before your start date.",
+      }),
+    ).toContain("pay-to-start");
+  });
+
+  it('pay-to-start catches the "buy it and we\'ll reimburse you" framing', () => {
+    expect(
+      firedIds({
+        text:
+          "Please buy the laptop from our approved vendor and we will reimburse " +
+          "you with your first paycheck.",
+      }),
+    ).toContain("pay-to-start");
   });
 
   it("does not fire money rules on a clean note", () => {
@@ -171,6 +189,117 @@ describe("sender-identity rules", () => {
     expect(ids).not.toContain("freemail-sender");
     expect(ids).not.toContain("domain-company-mismatch");
     expect(ids).not.toContain("lookalike-domain");
+  });
+});
+
+describe("link rules", () => {
+  it("shortened-link", () => {
+    expect(
+      firedIds({ text: "Apply through this link: https://bit.ly/3xY9qL today." }),
+    ).toContain("shortened-link");
+  });
+
+  it("shortened-link ignores LinkedIn's own shortener", () => {
+    expect(
+      firedIds({ text: "The posting is here: https://lnkd.in/abcd1234 have a look." }),
+    ).not.toContain("shortened-link");
+  });
+
+  it("suspicious-link-host: look-alike domain", () => {
+    expect(
+      firedIds({ text: "Apply at https://amazon-careers-hiring.online/apply" }),
+    ).toContain("suspicious-link-host");
+  });
+
+  it("suspicious-link-host: bare IP address", () => {
+    expect(firedIds({ text: "Portal is at http://192.168.44.9/onboarding" })).toContain(
+      "suspicious-link-host",
+    );
+  });
+
+  it("suspicious-link-host stays quiet on real applicant-tracking links", () => {
+    const ids = firedIds({
+      text:
+        "Here is the posting: https://boards.greenhouse.io/acme/jobs/12345 and " +
+        "you can book a slot at https://calendly.com/acme-recruiting/30min",
+    });
+    expect(ids).not.toContain("suspicious-link-host");
+  });
+
+  it("form-host-link: Google Form used for onboarding", () => {
+    expect(
+      firedIds({
+        text:
+          "Complete your onboarding and direct deposit details here: " +
+          "https://docs.google.com/forms/d/e/1FAIpQ/viewform",
+      }),
+    ).toContain("form-host-link");
+  });
+});
+
+describe("software and code rules", () => {
+  it("remote-access-tool", () => {
+    expect(
+      firedIds({ text: "Please install AnyDesk so I can set up your workstation." }),
+    ).toContain("remote-access-tool");
+  });
+
+  it("install-software-request", () => {
+    expect(
+      firedIds({ text: "Download our interview platform to attend the assessment." }),
+    ).toContain("install-software-request");
+  });
+
+  it("install-software-request stays quiet for Zoom and Teams", () => {
+    expect(
+      firedIds({ text: "Please install Zoom before the call if you don't have it." }),
+    ).not.toContain("install-software-request");
+  });
+
+  it("run-code-request", () => {
+    expect(
+      firedIds({
+        text:
+          "Before the technical interview, please clone the repository and run " +
+          "npm install to review the codebase.",
+      }),
+    ).toContain("run-code-request");
+  });
+});
+
+describe("onboarding, interview format and illegal roles", () => {
+  it("onboarding-paperwork-early: W-4 and direct deposit", () => {
+    expect(
+      firedIds({ text: "Complete the attached W-4 and your direct deposit form." }),
+    ).toContain("onboarding-paperwork-early");
+  });
+
+  it("chat-only-interview: interview over Teams chat", () => {
+    expect(
+      firedIds({ text: "Your interview will be conducted via chat on Microsoft Teams." }),
+    ).toContain("chat-only-interview");
+  });
+
+  it("chat-only-interview: no video required", () => {
+    expect(
+      firedIds({ text: "This is a written screening — no video is required." }),
+    ).toContain("chat-only-interview");
+  });
+
+  it("reshipping-role: receive packages at home and forward them", () => {
+    expect(
+      firedIds({
+        text:
+          "You will receive packages at your home address and forward them to " +
+          "our clients using labels we provide.",
+      }),
+    ).toContain("reshipping-role");
+  });
+
+  it("reshipping-role: package inspector title", () => {
+    expect(
+      firedIds({ text: "We are hiring a remote package inspector for our team." }),
+    ).toContain("reshipping-role");
   });
 });
 
