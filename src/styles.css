@@ -289,9 +289,31 @@ a {
 }
 
 .field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
   font-size: 0.85rem;
   font-weight: 650;
   letter-spacing: -0.005em;
+}
+
+/* "See an example" — a first-time visitor has nothing to paste. */
+.field__example {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.field__example:hover {
+  color: var(--accent-hover);
 }
 
 .field__opt {
@@ -375,6 +397,12 @@ a {
   opacity: 0.45;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.btn--small {
+  font-size: 0.82rem;
+  padding: 0.35rem 0.7rem;
+  flex: none;
 }
 
 /* ---- result ---------------------------------------------------------- */
@@ -495,13 +523,47 @@ a {
   padding: 1.25rem 1.4rem 0.35rem;
 }
 
+.findings__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .findings__title {
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-dim);
-  margin: 0 0 1rem;
+  margin: 0;
+}
+
+/* Low-severity points: listed, but not allowed to bury the serious ones. */
+.findings__minor {
+  margin-top: 1rem;
+}
+
+.findings__toggle {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  cursor: pointer;
+}
+
+.findings__toggle:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.findings__minor .findings__list {
+  margin-top: 0.7rem;
 }
 
 .findings__group-title {
@@ -622,6 +684,74 @@ a {
   padding: 1.25rem 1.4rem;
   color: var(--text-2);
   font-size: 0.94rem;
+}
+
+/* ---- next steps ------------------------------------------------------ */
+
+/* A verdict is not the end of the task — route the reader onward. */
+.next {
+  padding: 1.25rem 1.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.next__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  margin: 0 0 0.8rem;
+}
+
+.next__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.next__step {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, transform 0.05s;
+}
+
+.next__step:hover {
+  border-color: var(--accent);
+}
+
+.next__step:active {
+  transform: translateY(1px);
+}
+
+.next__step--primary {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.next__label {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.next__label::after {
+  content: " →";
+  color: var(--accent);
+}
+
+.next__help {
+  font-size: 0.87rem;
+  color: var(--text-2);
 }
 
 /* ---- checklist ------------------------------------------------------- */
@@ -843,9 +973,16 @@ a {
   .result__verdict,
   .findings,
   .result__disclaimer,
-  .findings__empty {
+  .findings__empty,
+  .next {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .findings__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
   }
 
   .result__badge {
