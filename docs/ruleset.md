@@ -4,7 +4,7 @@ The catalog the detection engine implements. Each rule is a pure function in
 `src/engine/rules.ts` that inspects a normalized input and, on a match, returns a
 `Finding`. Keep this document and that file in sync.
 
-**Status:** all 36 rules below are implemented, each with a positive test (and,
+**Status:** all 37 rules below are implemented, each with a positive test (and,
 where it matters, a negative test) in `src/engine/rules.test.ts`.
 
 Link handling lives in `src/engine/urls.ts` (extraction + host classification,

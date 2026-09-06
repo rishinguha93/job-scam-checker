@@ -18,7 +18,7 @@ describe("rule registry", () => {
   });
 
   it("exposes every rule as a function", () => {
-    expect(rules.length).toBeGreaterThanOrEqual(36);
+    expect(rules.length).toBeGreaterThanOrEqual(37);
     expect(rules.every((r) => typeof r === "function")).toBe(true);
   });
 });
@@ -256,6 +256,28 @@ describe("software and code rules", () => {
     expect(
       firedIds({ text: "Please install AnyDesk so I can set up your workstation." }),
     ).toContain("remote-access-tool");
+  });
+
+  it("executable-file: a .scr disguised as a PDF", () => {
+    expect(
+      firedIds({ text: "Please use the attached Job_Specs_PDF.scr to continue." }),
+    ).toContain("executable-file");
+  });
+
+  it("executable-file: double extension", () => {
+    expect(
+      firedIds({ text: "Open the attached offer_letter.pdf.exe for details." }),
+    ).toContain("executable-file");
+  });
+
+  it("executable-file stays quiet on ordinary documents", () => {
+    expect(
+      firedIds({
+        text:
+          "I've attached the job description as briefing.pdf and the team " +
+          "structure in overview.docx for you to look through.",
+      }),
+    ).not.toContain("executable-file");
   });
 
   it("install-software-request", () => {
@@ -513,6 +535,12 @@ describe("offer-content and process rules", () => {
           "experience perfectly.",
       }),
     ).toContain("flattery-hook");
+  });
+
+  it('urgency-pressure: "complete this within 24 hours"', () => {
+    expect(
+      firedIds({ text: "Please complete this review within 24 hours to continue." }),
+    ).toContain("urgency-pressure");
   });
 
   it('urgency-pressure: "time is critical" and review groups', () => {

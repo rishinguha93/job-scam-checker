@@ -99,5 +99,21 @@ describe("lookalikeReasons", () => {
 
   it("says nothing about an ordinary company domain", () => {
     expect(lookalikeReasons("northwindsoftware.com")).toEqual([]);
+    expect(lookalikeReasons("northwind-software.com")).toEqual([]);
+  });
+
+  it("flags official-sounding words stitched together", () => {
+    expect(lookalikeReasons("micro-job-portal-secure-link.com").join(" ")).toContain(
+      "stitched together",
+    );
+  });
+
+  it("flags an unusual number of hyphens", () => {
+    expect(lookalikeReasons("a-b-c-d-e-f.com").length).toBeGreaterThan(0);
+  });
+
+  it("does not flag a single trust word in an ordinary domain", () => {
+    // One such word is unremarkable; the bolt-on suffix check owns that case.
+    expect(lookalikeReasons("acmesupport.com")).toEqual([]);
   });
 });

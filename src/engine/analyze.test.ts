@@ -178,6 +178,24 @@ Good news — I know someone who can rewrite your CV properly. Go to Fiverr and 
     expect(result.summary).toMatch(/no known scam patterns matched/i);
   });
 
+  it("flags a malware attachment sent as interview instructions", () => {
+    const text =
+      "Hello we reviewed your profile for our open Data Analyst position and " +
+      "believe you are an excellent fit. Our team has already selected you for " +
+      "an initial online screening interview. Please download the company " +
+      "introduction briefing and interview instructions from our secure portal " +
+      "here: [micro-job-portal-secure-link.com] or use the attached " +
+      "Job_Specs_PDF.scr. Please complete this review within 24 hours so we can " +
+      "schedule your live panel call.";
+
+    const result = analyze({ text, channel: "linkedin" });
+    const ids = result.findings.map((f) => f.id);
+    expect(ids).toContain("executable-file");
+    expect(ids).toContain("suspicious-link-host");
+    expect(ids).toContain("urgency-pressure");
+    expect(result.verdict).toBe("very-likely-scam");
+  });
+
   it("every finding carries evidence and advice", () => {
     const result = analyze({
       text:

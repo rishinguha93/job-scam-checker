@@ -528,7 +528,7 @@ const hiredNoInterview: Rule = (input) => {
 
 const urgencyPatterns = [
   /\b(limited (slots|spots|positions)|positions? (are )?filling fast|only \d+ (slots|spots) left)\b/i,
-  /\b(respond|reply|confirm|act) (with)?in (the next )?\d+ ?(min(ute)?s?|hours?|hrs?)\b/i,
+  /\b(respond|reply|confirm|act|complete|finish|submit|return|register|book|schedule|download)\b[^.]{0,30}\b(with)?in (the next )?\d+ ?(min(ute)?s?|hours?|hrs?)\b/i,
   /\b(today only|act now|don'?t miss (this|out)|immediate start required)\b/i,
   /\b(remember to|make sure to|be sure to|please) (reply|respond|get back to (me|us))\b[^.]{0,20}\b(in time|promptly|quickly|right away|asap)\b/i,
   /\b(reply|respond|get back to (me|us))\b[^.]{0,15}\b(in time|promptly)\b/i,
@@ -913,6 +913,38 @@ const remoteAccessTool: Rule = (input) => {
   };
 };
 
+/**
+ * Extensions that execute code when opened. `.com` and `.js` are deliberately
+ * excluded: the first collides with domain names and the second appears in
+ * ordinary developer conversation.
+ */
+const executableFilePatterns = [
+  /\b[\w][\w\- ]{0,60}\.(scr|exe|msi|bat|cmd|pif|vbs|vbe|wsf|wsh|hta|jar|apk|dmg|pkg|iso|img|lnk|ps1|reg|msc|scf|cpl)\b/i,
+  // A document extension followed by an executable one — "invoice.pdf.exe".
+  /\b[\w\- ]{1,50}\.(pdf|docx?|xlsx?|pptx?|txt|jpe?g|png|zip)\.(scr|exe|msi|bat|cmd|pif|vbs|jar|apk)\b/i,
+];
+
+const executableFile: Rule = (input) => {
+  const ev = evidenceFor(input.text, executableFilePatterns);
+  if (!ev.length) return null;
+  return {
+    id: "executable-file",
+    category: "process",
+    severity: "critical",
+    title: "Sends a program disguised as a document",
+    detail:
+      "This file runs code the moment you open it. A .scr in particular is a " +
+      "Windows program, not a document, and naming it something like " +
+      "“Job_Specs_PDF.scr” is a deliberate disguise. No recruiter has any " +
+      "reason to send one.",
+    evidence: ev,
+    advice:
+      "Do not open or download it. Delete the message. If you already opened " +
+      "it, disconnect from the internet and run a malware scan from another " +
+      "device.",
+  };
+};
+
 const installSoftwarePatterns = [
   /\b(download|install)\b[^.]{0,45}\b(our|the|this|their)\b[^.]{0,30}\b(app|application|software|client|platform|tool|program|extension|plugin)\b/i,
   /\b(download|install|open|run)\b[^.]{0,50}\.(exe|msi|dmg|apk|scr|bat|pkg|jar)\b/i,
@@ -1129,6 +1161,7 @@ export const rules: Rule[] = [
   cryptoTopup,
   giftCards,
   cvServiceReferral,
+  executableFile,
   remoteAccessTool,
   reshippingRole,
   piiBeforeOffer,

@@ -48,6 +48,19 @@ export const SUSPICIOUS_TLDS = new Set([
   "icu", "cyou", "sbs", "monster", "quest", "fit", "beauty", "autos",
 ]);
 
+/**
+ * Reassuring words phishing domains stitch together to look official
+ * ("micro-job-portal-secure-link.com"). Any one is unremarkable; a pile of
+ * them in one domain is the tell.
+ */
+const TRUST_WORDS = [
+  "secure", "security", "portal", "verify", "verification", "verified",
+  "official", "login", "signin", "account", "support", "service", "update",
+  "confirm", "career", "careers", "job", "jobs", "hiring", "hire", "recruit",
+  "recruiting", "recruitment", "talent", "apply", "application", "onboarding",
+  "hr", "team", "center", "centre",
+];
+
 /** Well-known employer/brand tokens people try to impersonate. */
 export const BRAND_TOKENS = [
   "google", "microsoft", "apple", "amazon", "meta", "linkedin", "netflix",
@@ -214,6 +227,21 @@ export function lookalikeReasons(host: string): string[] {
   }
   if (/[a-z]\d|\d[a-z]/.test(core.replace(/\d{4,}/g, ""))) {
     reasons.push("digits standing in for letters");
+  }
+
+  // Reassuring words stitched together, e.g. "micro-job-portal-secure-link".
+  // Requires either three such words, or two plus heavy hyphenation, so an
+  // ordinary "acme-careers.com" is left to the bolt-on check above.
+  const segments = core.split(/[-.]/).filter(Boolean);
+  const trustHits = new Set(
+    segments.filter((s) => TRUST_WORDS.includes(s)),
+  ).size;
+  const hyphens = (core.match(/-/g) ?? []).length;
+
+  if (trustHits >= 3 || (trustHits >= 2 && hyphens >= 3)) {
+    reasons.push("several official-sounding words stitched together");
+  } else if (hyphens >= 4) {
+    reasons.push("an unusual number of hyphens");
   }
 
   return reasons;
