@@ -43,6 +43,50 @@ function toneFor(result: AnalysisResult): string {
   return VERDICT_META[result.verdict].tone;
 }
 
+/** A glyph per tone, so the verdict registers before the words are read. */
+function VerdictIcon({ tone }: { tone: string }) {
+  const common = {
+    className: "result__icon",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (tone === "danger") {
+    return (
+      <svg {...common}>
+        <path d="M10.3 3.9 1.9 18.4A2 2 0 0 0 3.6 21.4h16.8a2 2 0 0 0 1.7-3l-8.4-14.5a2 2 0 0 0-3.4 0Z" />
+        <path d="M12 9.5v4.2M12 17.4h.01" />
+      </svg>
+    );
+  }
+  if (tone === "warn") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9.2" />
+        <path d="M12 7.6v5M12 16.2h.01" />
+      </svg>
+    );
+  }
+  if (tone === "ok") {
+    return (
+      <svg {...common}>
+        <path d="M12 2.6 4.4 5.7v5.6c0 4.6 3.2 8.9 7.6 10.4 4.4-1.5 7.6-5.8 7.6-10.4V5.7L12 2.6Z" />
+        <path d="m8.8 11.9 2.2 2.2 4.2-4.2" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="12" r="9.2" />
+      <path d="M9.2 9.6a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.9-2.8 2.9M12 17.4h.01" />
+    </svg>
+  );
+}
+
 interface NextStep {
   href: string;
   label: string;
@@ -331,7 +375,10 @@ export function CheckMessage() {
           aria-live="polite"
         >
           <div className="result__verdict">
-            <span className="result__badge">{labelFor(result)}</span>
+            <span className="result__badge">
+              <VerdictIcon tone={toneFor(result)} />
+              {labelFor(result)}
+            </span>
             <p className="result__summary">{result.summary}</p>
           </div>
 
